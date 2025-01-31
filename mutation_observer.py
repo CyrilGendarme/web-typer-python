@@ -37,13 +37,3 @@ def observe_dom_changes(driver, target_selector="body", poll_interval=1):
 
         except Exception as e:
             print(f"Error while observing DOM: {e}")
-
-
-# Example usage
-from selenium import webdriver
-
-driver = webdriver.Chrome()
-driver.get("https://example.com")
-
-# Start observing changes
-observe_dom_changes(driver, target_selector="body")
