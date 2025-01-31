@@ -1,10 +1,12 @@
 import time
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.remote.webdriver import WebDriver
+from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.common.by import By
 
 
-def observe_dom_changes(driver, target_selector="body", poll_interval=1):
+def observe_dom_changes(
+    driver: WebDriver, target_selector: str = "body", poll_interval: float = 1.0
+) -> None:
     """
     Observes changes in the DOM by polling for attribute modifications or new child nodes.
 

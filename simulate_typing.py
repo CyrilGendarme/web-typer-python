@@ -1,8 +1,11 @@
 import time
-from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.remote.webdriver import WebDriver
+from selenium.webdriver.remote.webelement import WebElement
 
 
-def simulate_typing(driver, element, value, delay=0.05):
+def simulate_typing(
+    driver: WebDriver, element: WebElement, value: str, delay: float = 0.05
+) -> None:
     """
     Simulates typing characters into an input field with delays and triggers related events.
 

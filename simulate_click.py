@@ -1,8 +1,10 @@
+from selenium.webdriver.remote.webdriver import WebDriver
+from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys
 
 
-def simulate_click(driver, element):
+def simulate_click(driver: WebDriver, element: WebElement) -> None:
     """Simulates user interaction by dispatching click-related events."""
 
     actions = ActionChains(driver)
