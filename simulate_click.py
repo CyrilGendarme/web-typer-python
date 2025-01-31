@@ -1,25 +1,50 @@
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
-from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.common.keys import Keys
 
 
-def simulate_click(driver: WebDriver, element: WebElement) -> None:
+def simulate_click(driver: WebDriver, element: WebElement) -> bool:
     """Simulates user interaction by dispatching click-related events."""
+
+    # Wait until the element is clickable
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable(element))
+
+    # Scroll the element into view
+    driver.execute_script("arguments[0].scrollIntoView(true);", element)
 
     actions = ActionChains(driver)
 
-    # Simulate mouse events
-    actions.move_to_element(element).click_and_hold().release().perform()
+    # Try using mouse events (mousedown, mouseup, click)
+    try:
+        print("Attempting to click using mouse events (mousedown, mouseup).")
+        actions.move_to_element(element).click_and_hold().release().perform()
+        print("Mouse events (mousedown, mouseup) succeeded.")
+        return True
+    except Exception as e:
+        print(f"Mouse events failed: {e}")
 
-    # Simulate focus events
-    driver.execute_script("arguments[0].focus();", element)
+    # Try focusing and clicking the element directly
+    try:
+        print("Attempting to click using element.focus() and element.click().")
+        driver.execute_script("arguments[0].focus();", element)
+        element.click()  # Perform actual click
+        print("Element focus and click succeeded.")
+        return True
+    except Exception as e:
+        print(f"Element focus and click failed: {e}")
 
-    # Perform actual click
-    element.click()
+    # Try using JavaScript click event dispatch (in case the normal click doesn't work)
+    try:
+        print("Attempting to click using JavaScript click event.")
+        driver.execute_script("arguments[0].click();", element)
+        print("JavaScript click succeeded.")
+        return True
+    except Exception as e:
+        print(f"JavaScript click failed: {e}")
 
-    # Simulate second focus event (to match JavaScript behavior)
-    driver.execute_script(
-        "arguments[0].dispatchEvent(new FocusEvent('focus', { bubbles: true, cancelable: true }));",
-        element,
-    )
+    # If the element is still not clicked, throw an exception
+    print("All click attempts have failed...")
+    return False
