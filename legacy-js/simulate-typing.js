@@ -1,4 +1,4 @@
-// common.js
+// simulate-typing.js
 
 // Function to simulate typing characters with delays
 export function simulateTyping(element, value) {
