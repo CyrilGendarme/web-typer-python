@@ -22,7 +22,7 @@ from pick_webpage_element import (
     pick_elements_by_css_selector,
     pick_element_by_name,
 )
-from config import DEBUG_DELAY
+from vars.config import DEBUG_DELAY
 from mutation_observer import observe_dom_changes_with_trigger
 from ui.captcha_wait import wait_for_captcha
 

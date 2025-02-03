@@ -4,7 +4,7 @@ import time
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 
-from config import DEBUG
+from vars.config import DEBUG
 
 
 def get_headless_webdriver():
