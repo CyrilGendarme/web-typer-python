@@ -3,13 +3,6 @@ from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QLa
 from PyQt6.QtCore import pyqtSignal, QObject
 
 
-class CaptchaHandler(QObject):
-    captcha_triggered = pyqtSignal()  # Signal to trigger CAPTCHA window
-
-
-captcha_handler = CaptchaHandler()  # Global signal handler
-
-
 class CaptchaWaitWindow(QWidget):
     captcha_result_signal = pyqtSignal(bool)
 
