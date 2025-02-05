@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import threading
 from selenium.webdriver.remote.webdriver import WebDriver
@@ -7,7 +8,13 @@ from selenium.common.exceptions import (
     NoSuchElementException,
     StaleElementReferenceException,
 )
-from ui.captcha_wait import captcha_handler  # Import the signal handler
+
+root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.append(root_dir)
+
+from config import MUTATION_OBSERVER_BASE_POLL_INTERVAL
+import task_engine.tasks_queue as task_engine
+from task_engine.enums_and_mappings import UiToShow
 
 
 def observe_dom_changes_with_trigger(
@@ -15,7 +22,8 @@ def observe_dom_changes_with_trigger(
     watched_classes: list,
     watched_ids: list,
     target_selector: str = "body",
-    poll_interval: float = 1.0,
+    ui_interaction_queue: task_engine.TasksQueue = None,
+    poll_interval: float = MUTATION_OBSERVER_BASE_POLL_INTERVAL,
 ) -> None:
     previous_html = None
 
@@ -23,27 +31,43 @@ def observe_dom_changes_with_trigger(
         time.sleep(poll_interval)
 
         try:
-            print("******* Checking for DOM changes...")
+            # print("******* Checking for DOM changes...")
 
             # Get the target element and compare the HTML
             target_element = driver.find_element(By.CSS_SELECTOR, target_selector)
             current_html = target_element.get_attribute("outerHTML")
 
             if current_html != previous_html:
-                print("DOM has changed!")
+                # print("DOM has changed!")
+                executed = False
 
                 for class_name in watched_classes:
                     try:
-                        # Try finding an element with the class name
                         if driver.find_element(By.CLASS_NAME, class_name):
                             print(f"Element with class '{class_name}' detected!")
-
-                            # Emit a signal to notify the main thread
-                            captcha_handler.captcha_triggered.emit()  # This triggers the popup in the main thread
-                            break  # Stop checking other classes for this iteration
+                            # Emit a pseudo-signal
+                            ui_interaction_queue.add_task(
+                                UiToShow.CAPTCHA, check_duplicate=True
+                            )
+                            executed = True
+                            break
 
                     except NoSuchElementException:
                         continue
+
+                if not executed:
+                    for id in watched_ids:
+                        try:
+                            if driver.find_element(By.ID, id):
+                                print(f"Element with id '{id}' detected!")
+                                # Emit a pseudo-signal
+                                ui_interaction_queue.add_task(
+                                    UiToShow.CAPTCHA, check_duplicate=True
+                                )
+                                break
+
+                        except NoSuchElementException:
+                            continue
 
                 # Update previous HTML state
                 previous_html = current_html
