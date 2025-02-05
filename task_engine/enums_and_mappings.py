@@ -1,4 +1,5 @@
-## This is project-specific
+## This is open to extension for project-specific stuff
+
 import os
 import sys
 from enum import Enum, auto
