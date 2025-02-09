@@ -4,11 +4,11 @@
 import os
 import sys
 import time
-from webpage_interactions.simulate_typing import simulate_typing
 
 root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(root_dir)
 
+from webpage_interactions.simulate_typing import simulate_typing
 from webpage_interactions.pick_webpage_element import (
     pick_element_by_class,
     pick_element_by_css_selector,

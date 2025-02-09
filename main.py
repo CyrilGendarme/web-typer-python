@@ -4,7 +4,6 @@ from selenium import webdriver
 from task_engine.tasks_queue import TasksQueue, process_queue
 from webpage_interactions.mutation_observer import observe_dom_changes_with_trigger
 from config import DEBUG_DELAY
-from webpage_interactions.mutation_observer import observe_dom_changes_with_trigger
 from task_engine.tasks import *
 from task_engine.enums_and_mappings import *
 
