@@ -15,8 +15,8 @@ def run_test():
     captcha_specific_ids = ["captcha-form", "recaptcha"]
 
     # Create queues
-    tasks_queue = TasksQueue(webpage_interaction_func_map)
-    ui_interaction_queue = TasksQueue(ui_func_map)
+    tasks_queue = TasksQueue([webpage_interaction_func_map])
+    ui_interaction_queue = TasksQueue([ui_func_map])
 
     # Get the selenium webdriver
     driver = webdriver.Chrome()

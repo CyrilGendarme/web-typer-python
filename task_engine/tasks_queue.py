@@ -31,8 +31,6 @@ class TasksQueue:
             check_duplicate (bool, optional): If True, prevents adding duplicate function types. Defaults to False.
         """
         with self.lock:
-            print(f"Adding task: {task_enum}")
-            print(f"Adding task: {self.func_maps}")
             func = None
 
             # Try to find the function in either of the function maps

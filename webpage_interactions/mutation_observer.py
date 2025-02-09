@@ -9,10 +9,10 @@ from selenium.common.exceptions import (
     StaleElementReferenceException,
 )
 
-root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.append(root_dir)
 
-from config import MUTATION_OBSERVER_BASE_POLL_INTERVAL
+from web_typer_python.config import MUTATION_OBSERVER_BASE_POLL_INTERVAL
 import task_engine.tasks_queue as task_engine
 from task_engine.enums_and_mappings import UiToShow
 
