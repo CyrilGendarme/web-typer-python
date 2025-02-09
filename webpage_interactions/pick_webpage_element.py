@@ -1,8 +1,73 @@
-import time
+from enum import Enum
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
 from typing import List, Optional
+
+
+# Enum to allow generic func instead of code duplication in extending scripts
+class ElementSelector(Enum):
+    ID = "id"
+    CLASS_NAME = "class_name"
+    CSS_SELECTOR = "css_selector"
+    NAME = "name"
+
+
+def pick_element(
+    driver: WebDriver, method: ElementSelector, identifier: str, nth: int = 0
+) -> Optional[WebElement]:
+    """
+    Picks a WebElement using a specified selection method.
+
+    Args:
+        driver (WebDriver): The Selenium WebDriver instance.
+        method (ElementSelector): The method to use (ID, CLASS_NAME, CSS_SELECTOR, NAME).
+        identifier (str): The value used for element lookup.
+        nth (int, optional): The index for CLASS_NAME-based selection (default 0).
+
+    Returns:
+        WebElement | None: The found element or None if not found.
+    """
+    try:
+        if method == ElementSelector.ID:
+            return driver.find_element(By.ID, identifier)
+        elif method == ElementSelector.CLASS_NAME:
+            elements = driver.find_elements(By.CLASS_NAME, identifier)
+            return elements[nth] if 0 <= nth < len(elements) else None
+        elif method == ElementSelector.CSS_SELECTOR:
+            return driver.find_element(By.CSS_SELECTOR, identifier)
+        elif method == ElementSelector.NAME:
+            return driver.find_element(By.NAME, identifier)
+    except Exception as e:
+        print(f"Error finding element with {method.value}: {e}")
+        return None
+
+
+def pick_elements(
+    driver: WebDriver, method: ElementSelector, identifier: str
+) -> List[WebElement]:
+    """
+    Picks multiple WebElements using a specified selection method.
+
+    Args:
+        driver (WebDriver): The Selenium WebDriver instance.
+        method (ElementSelector): The method to use (ID, CLASS_NAME, CSS_SELECTOR, NAME).
+        identifier (str): The value used for element lookup.
+
+    Returns:
+        List[WebElement]: A list of found elements.
+    """
+    try:
+        if method == ElementSelector.CLASS_NAME:
+            return driver.find_elements(By.CLASS_NAME, identifier)
+        elif method == ElementSelector.CSS_SELECTOR:
+            return driver.find_elements(By.CSS_SELECTOR, identifier)
+        else:
+            print(f"Method {method} does not support multiple elements")
+            return []
+    except Exception as e:
+        print(f"Error finding elements with {method.value}: {e}")
+        return []
 
 
 def pick_element_by_id(driver: WebDriver, element_id: str) -> WebElement:
