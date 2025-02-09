@@ -30,7 +30,7 @@ def run_test():
         "Selenium WebDriver Python",
     )
     tasks_queue.add_task(WebpageInteraction.CLICK_ON_FIRST_RESULT, driver)
-    tasks_queue.add_task(WebpageInteraction.SLEEP, 10)
+    tasks_queue.add_task(CommonTasks.SLEEP, 10)
 
     # Start the observer thread to detect CAPTCHA
     observer_thread = threading.Thread(

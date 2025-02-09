@@ -1,6 +1,12 @@
+import os
+import sys
 import threading
-import time
 from typing import Callable, Dict, List, Optional, Tuple, Any
+
+root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.append(root_dir)
+
+from task_engine.enums_and_mappings import common_func_map
 
 
 # Define a generic type for function maps
@@ -27,17 +33,19 @@ class TasksQueue:
         with self.lock:
             if task_enum in self.func_map:
                 func = self.func_map[task_enum]
-
-                # Check for duplicates if the flag is enabled
-                if check_duplicate and any(
-                    existing_task[0] == func for existing_task in self.task_queue
-                ):
-                    print(f"Skipping duplicate task: {task_enum}")
-                    return
-
-                self.task_queue.append((func, *args))
+            elif task_enum in common_func_map:
+                func = common_func_map[task_enum]
             else:
                 print(f"Warning: No function mapped for {task_enum}")
+                return
+            # Check for duplicates if the flag is enabled
+            if check_duplicate and any(
+                existing_task[0] == func for existing_task in self.task_queue
+            ):
+                print(f"Skipping duplicate task: {task_enum}")
+                return
+
+            self.task_queue.append((func, *args))
 
     def get_next_task(
         self, remove: bool = True

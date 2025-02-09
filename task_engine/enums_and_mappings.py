@@ -12,21 +12,35 @@ from ui.captcha_wait import wait_for_captcha
 
 
 # Define an Enums for strong typing of the pseudo-signals
+
+
+# Common stuff
+class CommonTasks(Enum):
+    SLEEP = auto()
+    CLICK_ELEMENT = auto()
+    TYPE_INTO_ELEMENT = auto()
+    NO_OP = auto()  # Represents no operation
+
+
 class UiToShow(Enum):
     CAPTCHA = auto()
-    NONE = None  # Represents no UI
 
 
 class WebpageInteraction(Enum):
-    SLEEP = auto()
     CLICK_COOKIE_BTN = auto()
     TYPE_AND_CLICK_IN_SEARCH = auto()
     CLICK_ON_FIRST_RESULT = auto()
-    NONE = None  # Represents no UI
 
+
+# Func mapping
+common_func_map = {
+    CommonTasks.SLEEP: sleep,
+    CommonTasks.CLICK_ELEMENT: click_element,
+    CommonTasks.TYPE_INTO_ELEMENT: type_into_element,
+    CommonTasks.NO_OP: None,
+}
 
 webpage_interaction_func_map = {
-    WebpageInteraction.SLEEP: sleep,
     WebpageInteraction.CLICK_COOKIE_BTN: click_cookie_btn,
     WebpageInteraction.TYPE_AND_CLICK_IN_SEARCH: type_and_click_in_search,
     WebpageInteraction.CLICK_ON_FIRST_RESULT: click_on_first_result,
