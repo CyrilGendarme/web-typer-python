@@ -4,18 +4,17 @@ import time
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 
-from config import DEBUG
-
 
 def get_headless_webdriver():
     """Launch a headless Chrome WebDriver with custom options."""
     options = Options()
-    if not DEBUG:
-        options.add_argument("--headless")  # Run browser in headless mode
-        options.add_argument("--disable-gpu")  # Disable GPU (optional)
+    # if not DEBUG:
+    #     options.add_argument("--headless")  # Run browser in headless mode
+    #     options.add_argument("--disable-gpu")  # Disable GPU (optional)
     options.add_argument(
         "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     )  # Mimic a real browser
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
 
     driver = webdriver.Chrome(options=options)
     return driver

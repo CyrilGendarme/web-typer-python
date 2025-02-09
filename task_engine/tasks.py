@@ -5,6 +5,7 @@ import os
 import sys
 import time
 from selenium.webdriver.remote.webdriver import WebDriver
+from selenium.webdriver.common.action_chains import ActionChains
 
 root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(root_dir)
@@ -73,6 +74,68 @@ def type_into_element(
         simulate_typing(driver, element, text)
     else:
         print(f"Could not find element {identifier} using {method.name}")
+
+
+# core
+def drag_and_drop_file(
+    driver: WebDriver,
+    method_file_input: ElementSelectorMethod,
+    method_drop_zone: ElementSelectorMethod,
+    file_input_selector: str,
+    drop_zone_selector: str,
+    file_path: str,
+    nth_file_input: int = 0,
+    nth_drop_zone: int = 0,
+):
+    """
+    Simulates dragging and dropping a file into a drop zone.
+
+    Args:
+        driver (WebDriver): Selenium WebDriver instance.
+        method_file_input (ElementSelectorMethod): Method to locate the file input.
+        method_drop_zone (ElementSelectorMethod): Method to locate the drop zone.
+        file_input_selector (str): Selector for the hidden file input.
+        drop_zone_selector (str): Selector for the drop zone.
+        file_path (str): Absolute path of the file to be uploaded.
+        nth_file_input (int, optional): Index of file input if multiple exist (default: 0).
+        nth_drop_zone (int, optional): Index of drop zone if multiple exist (default: 0).
+    """
+
+    # Locate elements
+    file_input = pick_element(
+        driver, method_file_input, file_input_selector, nth_file_input
+    )
+    drop_zone = pick_element(
+        driver, method_drop_zone, drop_zone_selector, nth_drop_zone
+    )
+
+    if not file_input:
+        print(
+            f"Error: File input element not found using {method_file_input} - {file_input_selector}"
+        )
+        return
+
+    if not drop_zone:
+        print(
+            f"Warning: Drop zone element not found using {method_drop_zone} - {drop_zone_selector}"
+        )
+        print("Proceeding with direct file input upload.")
+
+    # Send file to hidden input
+    file_input.send_keys(file_path)
+
+    # If drop zone exists, attempt a visual drag-and-drop
+    if drop_zone:
+        try:
+            action = ActionChains(driver)
+            action.click_and_hold(file_input).move_to_element(
+                drop_zone
+            ).release().perform()
+            print("Drag-and-drop simulation executed.")
+        except Exception as e:
+            print(f"Drag-and-drop action failed: {e}")
+
+    print("File upload process completed.")
 
 
 # core

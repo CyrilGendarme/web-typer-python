@@ -19,6 +19,7 @@ class CommonTasks(Enum):
     SLEEP = auto()
     CLICK_ELEMENT = auto()
     TYPE_INTO_ELEMENT = auto()
+    DRAG_AND_DROP_FILE = auto()
     NO_OP = auto()  # Represents no operation
 
 
@@ -37,6 +38,7 @@ common_func_map = {
     CommonTasks.SLEEP: sleep,
     CommonTasks.CLICK_ELEMENT: click_element,
     CommonTasks.TYPE_INTO_ELEMENT: type_into_element,
+    CommonTasks.DRAG_AND_DROP_FILE: drag_and_drop_file,
     CommonTasks.NO_OP: None,
 }
 
