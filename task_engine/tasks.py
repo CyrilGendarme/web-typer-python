@@ -11,7 +11,7 @@ sys.path.append(root_dir)
 
 from webpage_interactions.simulate_typing import simulate_typing
 from webpage_interactions.pick_webpage_element import (
-    ElementSelector,
+    ElementSelectorMethod,
     pick_element_by_class,
     pick_element_by_css_selector,
     pick_element_by_id,
@@ -26,14 +26,14 @@ from webpage_interactions.simulate_click import simulate_click
 # Here are the core functions
 #
 def click_element(
-    driver: WebDriver, method: ElementSelector, identifier: str, nth: int = 0
+    driver: WebDriver, method: ElementSelectorMethod, identifier: str, nth: int = 0
 ):
     """
     Clicks on a webpage element based on the specified selection method.
 
     Args:
         driver (WebDriver): Selenium WebDriver instance.
-        method (ElementSelector): The method used to locate the element (Enum value).
+        method (ElementSelectorMethod): The method used to locate the element (Enum value).
         identifier (str): The actual value for the selected method (ID, class, CSS selector, etc.).
         nth (int, optional): Index of the element if multiple exist (default is 0).
 
@@ -49,14 +49,18 @@ def click_element(
 
 # core
 def type_into_element(
-    driver: WebDriver, method: ElementSelector, identifier: str, text: str, nth: int = 0
+    driver: WebDriver,
+    method: ElementSelectorMethod,
+    identifier: str,
+    text: str,
+    nth: int = 0,
 ):
     """
     Finds a webpage element and types the given text into it.
 
     Args:
         driver (WebDriver): Selenium WebDriver instance.
-        method (ElementSelector): The method used to locate the element (Enum value).
+        method (ElementSelectorMethod): The method used to locate the element (Enum value).
         identifier (str): The actual value for the selected method (ID, class, CSS selector, etc.).
         text (str): The text to be typed into the selected element.
         nth (int, optional): Index of the element if multiple exist (default is 0).
@@ -82,7 +86,7 @@ def sleep(delay):
 #
 def click_cookie_btn(driver):
 
-    # click_element(driver, ElementSelector.ID, "L2AGLb")
+    # click_element(driver, ElementSelectorMethod.ID, "L2AGLb")
 
     cookie_btn = pick_element_by_id(driver, "L2AGLb")
     if not cookie_btn:
@@ -94,8 +98,8 @@ def click_cookie_btn(driver):
 # example
 def type_and_click_in_search(driver, text):
 
-    # type_into_element(driver, ElementSelector.NAME, "q", text)
-    # click_element(driver, ElementSelector.CLASS_NAME, "gNO89b")
+    # type_into_element(driver, ElementSelectorMethod.NAME, "q", text)
+    # click_element(driver, ElementSelectorMethod.CLASS_NAME, "gNO89b")
 
     search_box = pick_element_by_name(driver, "q")
     if not search_box:
@@ -113,7 +117,7 @@ def type_and_click_in_search(driver, text):
 # example
 def click_on_first_result(driver):
 
-    # click_element(driver, ElementSelector.CSS_SELECTOR, "h3", 0)
+    # click_element(driver, ElementSelectorMethod.CSS_SELECTOR, "h3", 0)
 
     first_result = pick_element_by_css_selector(driver, "h3")
     if not first_result:
