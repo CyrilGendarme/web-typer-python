@@ -40,7 +40,7 @@ def click_element(
     Returns:
         None: Clicks the element if found, otherwise prints an error message.
     """
-    element = pick_element(driver, method.value, identifier, nth)
+    element = pick_element(driver, method, identifier, nth)
     if element:
         simulate_click(driver, element)
     else:
@@ -68,7 +68,7 @@ def type_into_element(
     Returns:
         None: Types the given text if the element is found, otherwise prints an error message.
     """
-    element = pick_element(driver, method.value, identifier, nth)
+    element = pick_element(driver, method, identifier, nth)
     if element:
         simulate_typing(driver, element, text)
     else:

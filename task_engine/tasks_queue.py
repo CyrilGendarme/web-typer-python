@@ -14,11 +14,11 @@ FuncMapType = Dict[Any, Callable[..., None]]  # Allows any Enum-based mapping
 
 
 class TasksQueue:
-    def __init__(self, func_map: FuncMapType) -> None:
+    def __init__(self, func_maps: List[FuncMapType]) -> None:
         """Initialize the task queue with a flexible function map."""
         self.task_queue: List[Tuple[Callable[..., None], ...]] = []
         self.lock = threading.Lock()
-        self.func_map = func_map
+        self.func_maps = func_maps
 
     def add_task(
         self, task_enum: Any, *args: Any, check_duplicate: bool = False
@@ -31,13 +31,20 @@ class TasksQueue:
             check_duplicate (bool, optional): If True, prevents adding duplicate function types. Defaults to False.
         """
         with self.lock:
-            if task_enum in self.func_map:
-                func = self.func_map[task_enum]
-            elif task_enum in common_func_map:
-                func = common_func_map[task_enum]
-            else:
+            print(f"Adding task: {task_enum}")
+            print(f"Adding task: {self.func_maps}")
+            func = None
+
+            # Try to find the function in either of the function maps
+            for func_map in self.func_maps:
+                if task_enum in func_map:
+                    func = func_map[task_enum]
+                    break
+
+            if func is None:
                 print(f"Warning: No function mapped for {task_enum}")
                 return
+
             # Check for duplicates if the flag is enabled
             if check_duplicate and any(
                 existing_task[0] == func for existing_task in self.task_queue
