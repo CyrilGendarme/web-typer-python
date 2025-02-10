@@ -159,3 +159,29 @@ def pick_element_by_name(driver: WebDriver, name: str) -> WebElement:
     except Exception as e:
         print(f"Error finding element by name: {e}")
         return None
+
+
+def is_element_present(
+    driver: WebDriver, method: ElementSelectorMethod, identifier: str, nth: int = 0
+) -> bool:
+    """
+    Checks if a WebElement exists on the page using the specified selection method.
+
+    Args:
+        driver (WebDriver): The Selenium WebDriver instance.
+        method (ElementSelectorMethod): The method to use (ID, CLASS_NAME, CSS_SELECTOR, NAME).
+        identifier (str): The value used for element lookup.
+        nth (int, optional): The index for CLASS_NAME-based selection (default 0).
+
+    Returns:
+        bool: True if the element exists, False otherwise.
+    """
+    try:
+        element = pick_element(driver, method, identifier, nth)
+        if element is not None:
+            return True
+        else:
+            return False
+    except Exception as e:
+        print(f"Error checking for element with {method.value}: {e}")
+        return False
