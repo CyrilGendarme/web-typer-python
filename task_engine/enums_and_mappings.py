@@ -10,6 +10,8 @@ sys.path.append(root_dir)
 from task_engine.tasks import *
 from ui.captcha_wait import wait_for_captcha
 
+from desktop_windows_interactions.simulate_actions import select_file_window
+
 
 # Define an Enums for strong typing of the pseudo-signals
 
@@ -20,6 +22,7 @@ class CommonTasks(Enum):
     CLICK_ELEMENT = auto()
     TYPE_INTO_ELEMENT = auto()
     DRAG_AND_DROP_FILE = auto()
+    SELECT_FILE_THROUGH_WINDOW = auto()
     NO_OP = auto()  # Represents no operation
 
 
@@ -39,6 +42,7 @@ common_func_map = {
     CommonTasks.CLICK_ELEMENT: click_element,
     CommonTasks.TYPE_INTO_ELEMENT: type_into_element,
     CommonTasks.DRAG_AND_DROP_FILE: drag_and_drop_file,
+    CommonTasks.SELECT_FILE_THROUGH_WINDOW: select_file_window,
     CommonTasks.NO_OP: None,
 }
 
