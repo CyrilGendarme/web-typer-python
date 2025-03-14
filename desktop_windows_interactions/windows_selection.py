@@ -40,12 +40,12 @@ def bring_window_to_front(window):
         if window:
             window.activate()
             window.maximize()  # Optional, ensure visibility
-            time.sleep(0.5)
+            # time.sleep(0.5)
 
     elif current_platform == "Linux":
         try:
             window_id = window.split()[0]
             subprocess.call(["wmctrl", "-i", "-a", window_id])
-            time.sleep(0.5)
+            # time.sleep(0.5)
         except Exception as e:
             print(f"[ERROR] Failed to bring window to front on Linux: {e}")

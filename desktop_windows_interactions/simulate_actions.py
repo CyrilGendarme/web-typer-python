@@ -20,14 +20,14 @@ def type_in_directory_field(folder_path):
     press_keys_platform_dependent({"win": ["ctrl", "l"], "linux": ["shift", "tab"]})
     type_text(folder_path)
     pyautogui.press("enter")
-    time.sleep(1)
+    # time.sleep(1)
 
 
 def type_in_filename_field(filename):
     press_keys_platform_dependent({"win": ["alt", "n"], "linux": ["shift", "tab"]})
     type_text(filename)
     pyautogui.press("enter")
-    time.sleep(1)
+    # time.sleep(1)
 
 
 def select_file_window(directory_path: str, filename: str):
@@ -45,7 +45,7 @@ def select_file_window(directory_path: str, filename: str):
             )
             bring_window_to_front(window)
 
-            time.sleep(0.5)
+            # time.sleep(0.5)
 
             type_in_directory_field(directory_path)
             type_in_filename_field(filename)

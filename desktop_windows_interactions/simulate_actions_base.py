@@ -9,7 +9,7 @@ current_platform = platform.system()
 def type_text(text):
     for char in text:
         keyboard.write(char)
-        time.sleep(0.035)
+        # time.sleep(0.035)
 
 
 def press_keys_platform_dependent(hotkeys: dict):
@@ -28,6 +28,6 @@ def press_keys_platform_dependent(hotkeys: dict):
 
     if keys:
         pyautogui.hotkey(*keys)
-        time.sleep(0.3)
+        # time.sleep(0.3)
     else:
         print(f"[WARNING] No hotkeys defined for {current_platform}")
