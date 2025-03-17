@@ -39,6 +39,8 @@ def run_test():
             driver,
             captcha_specific_classes,
             captcha_specific_ids,
+            [],
+            [],
             "body",
             ui_interaction_queue,
             1,
