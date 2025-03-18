@@ -21,7 +21,11 @@ class TasksQueue:
         self.func_maps = func_maps
 
     def add_task(
-        self, task_enum: Any, *args: Any, check_duplicate: bool = False
+        self,
+        task_enum: Any,
+        *args: Any,
+        check_duplicate: bool = False,
+        add_to_top: bool = False,
     ) -> None:
         """Add a task using an Enum instead of a raw function reference.
 
@@ -50,7 +54,10 @@ class TasksQueue:
                 print(f"Skipping duplicate task: {task_enum}")
                 return
 
-            self.task_queue.append((func, *args))
+            if add_to_top:
+                self.task_queue.insert(0, (func, *args))
+            else:
+                self.task_queue.append((func, *args))
 
     def get_next_task(
         self, remove: bool = True

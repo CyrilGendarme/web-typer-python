@@ -40,10 +40,9 @@ def observe_dom_changes_with_trigger(
     task_queue_when_trigger_detected: task_engine.TasksQueue = None,
     poll_interval: float = MUTATION_OBSERVER_BASE_POLL_INTERVAL,
     task_enum_when_trigger_detected=None,
+    task_to_top_when_trigger_detected: bool = False,
 ) -> None:
     previous_html = None
-
-    print("[DOM OBSERVER] Starting DOM observation...")
 
     while True:
         time.sleep(poll_interval)
@@ -53,7 +52,6 @@ def observe_dom_changes_with_trigger(
             current_html = target_element.get_attribute("outerHTML")
 
             if current_html != previous_html:
-                print("[DOM OBSERVER] Detected HTML change.")
 
                 trigger_detected = False
 
@@ -101,7 +99,9 @@ def observe_dom_changes_with_trigger(
                 if trigger_detected:
                     if task_queue_when_trigger_detected:
                         task_queue_when_trigger_detected.add_task(
-                            task_enum_when_trigger_detected, check_duplicate=True
+                            task_enum=task_enum_when_trigger_detected,
+                            check_duplicate=True,
+                            add_to_top=task_to_top_when_trigger_detected,
                         )
                     else:
                         print("[DOM OBSERVER] Action triggered! (No queue provided)")
