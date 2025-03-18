@@ -44,6 +44,7 @@ def run_test():
             "body",
             ui_interaction_queue,
             1,
+            UiToShow.CAPTCHA,
         ),
         daemon=True,
     )

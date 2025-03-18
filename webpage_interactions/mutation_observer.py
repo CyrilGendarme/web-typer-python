@@ -2,6 +2,7 @@ import os
 import sys
 import time
 import threading
+from typing import Callable
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import (
@@ -36,8 +37,9 @@ def observe_dom_changes_with_trigger(
     watched_inner_text: list = [],
     watched_any_content_in_html: list = [],
     target_selector: str = "body",
-    ui_interaction_queue: task_engine.TasksQueue = None,
+    task_queue_when_trigger_detected: task_engine.TasksQueue = None,
     poll_interval: float = MUTATION_OBSERVER_BASE_POLL_INTERVAL,
+    task_enum_when_trigger_detected=None,
 ) -> None:
     previous_html = None
 
@@ -97,9 +99,9 @@ def observe_dom_changes_with_trigger(
                             break
 
                 if trigger_detected:
-                    if ui_interaction_queue:
-                        ui_interaction_queue.add_task(
-                            UiToShow.CAPTCHA, check_duplicate=True
+                    if task_queue_when_trigger_detected:
+                        task_queue_when_trigger_detected.add_task(
+                            task_enum_when_trigger_detected, check_duplicate=True
                         )
                     else:
                         print("[DOM OBSERVER] Action triggered! (No queue provided)")
