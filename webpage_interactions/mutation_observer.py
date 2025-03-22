@@ -32,10 +32,11 @@ def observe_dom_changes_with_trigger(
     watched_inner_text: list = [],
     watched_any_content_in_html: list = [],
     target_selector: str = "body",
-    task_queue_when_trigger_detected: task_engine.TasksQueue = None,
+    task_queue: task_engine.TasksQueue = None,
     poll_interval: float = MUTATION_OBSERVER_BASE_POLL_INTERVAL,
-    task_enum_when_trigger_detected=None,
-    task_to_top_when_trigger_detected: bool = False,
+    task_enum=None,
+    task_args: list = [],
+    task_to_top: bool = False,
 ) -> None:
     previous_html = None
 
@@ -92,11 +93,12 @@ def observe_dom_changes_with_trigger(
                             break
 
                 if trigger_detected:
-                    if task_queue_when_trigger_detected:
-                        task_queue_when_trigger_detected.add_task(
-                            task_enum=task_enum_when_trigger_detected,
+                    if task_queue:
+                        task_queue.add_task(
+                            task_enum=task_enum,
+                            args=task_args,
                             check_duplicate=True,
-                            add_to_top=task_to_top_when_trigger_detected,
+                            add_to_top=task_to_top,
                         )
                     else:
                         print("[DOM OBSERVER] Action triggered! (No queue provided)")
