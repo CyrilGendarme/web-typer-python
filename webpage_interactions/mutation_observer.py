@@ -1,8 +1,6 @@
 import os
 import sys
 import time
-import threading
-from typing import Callable
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import (
@@ -25,9 +23,6 @@ from selenium.common.exceptions import (
     StaleElementReferenceException,
 )
 from selenium.webdriver.remote.webdriver import WebDriver
-
-# Example: from your_project import task_engine, UiToShow
-# For demo, you can replace UiToShow.CAPTCHA with a string like "CAPTCHA"
 
 
 def observe_dom_changes_with_trigger(
