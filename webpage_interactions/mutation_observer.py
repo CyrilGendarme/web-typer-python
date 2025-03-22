@@ -41,7 +41,15 @@ def observe_dom_changes_with_trigger(
     previous_html = None
 
     while True:
-        time.sleep(poll_interval)
+
+        # Thread killing sequence if the driver is closed
+        if not driver.title:
+            print(f"no driver.title")
+            try:
+                driver.quit()
+            except:
+                pass
+            sys.exit(0)
 
         try:
             target_element = driver.find_element(By.CSS_SELECTOR, target_selector)
@@ -112,4 +120,4 @@ def observe_dom_changes_with_trigger(
             )
             continue
         except Exception as e:
-            print(f"[DOM OBSERVER] Error while observing DOM: {e}")
+            print(f"[DOM OBSERVER] Thread will exit - Error while observing DOM: {e}")
