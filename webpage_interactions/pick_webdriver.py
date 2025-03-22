@@ -1,8 +1,9 @@
 import os
-import subprocess
+import psutil
 import time
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+import subprocess
 
 
 def get_headless_webdriver():
@@ -57,3 +58,41 @@ def launch_chrome_with_debugging(
         time.sleep(3)
     except Exception as e:
         print(f"Failed to launch Chrome: {e}")
+
+
+def close_driver_and_chrome_by_port(driver, debug_port=9222):
+    """Closes Selenium WebDriver and kills the Chrome process using the specified debug port."""
+
+    # Step 1: Close the WebDriver session
+    if driver:
+        try:
+            driver.quit()
+            print("WebDriver session closed.")
+        except Exception as e:
+            print(f"Error while closing WebDriver: {e}")
+
+    # Step 2: Find and kill the Chrome process using the debug port
+    try:
+        for proc in psutil.process_iter(["pid", "name"]):
+            try:
+                # Now get connections dynamically (NOT as an attribute in process_iter)
+                conns = proc.connections(kind="inet")
+
+                for conn in conns:
+                    if conn.laddr.port == debug_port:
+                        print(
+                            f"Killing process {proc.pid} ({proc.name()}) using port {debug_port}"
+                        )
+                        proc.terminate()  # Try graceful shutdown
+                        try:
+                            proc.wait(timeout=5)
+                            print(f"Process {proc.pid} terminated.")
+                        except psutil.TimeoutExpired:
+                            proc.kill()  # Force kill if terminate didn't work
+                            print(f"Process {proc.pid} force killed.")
+                        return  # Exit after killing the right process
+
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+    except Exception as e:
+        print(f"Error finding/killing process by port {debug_port}: {e}")
