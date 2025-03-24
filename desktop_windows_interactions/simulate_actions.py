@@ -1,6 +1,6 @@
-import pyautogui
 import os
 import sys
+import pyautogui
 import time
 
 root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))

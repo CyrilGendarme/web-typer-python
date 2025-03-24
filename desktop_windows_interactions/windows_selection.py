@@ -1,6 +1,5 @@
-import platform
-import time
 import sys
+import platform
 
 current_platform = platform.system()
 if current_platform == "Windows":

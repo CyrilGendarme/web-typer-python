@@ -1,14 +1,13 @@
+from enum import Enum, auto
 import os
 import sys
-from enum import Enum, auto
 
 root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(root_dir)
 
+from desktop_windows_interactions.simulate_actions import select_file_window
 from task_engine_extension.tasks import *
 from ui.captcha_wait import wait_for_captcha
-
-from desktop_windows_interactions.simulate_actions import select_file_window
 
 
 # Define an Enums for strong typing of the pseudo-signals

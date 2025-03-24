@@ -1,9 +1,9 @@
 import os
 import psutil
-import time
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 import subprocess
+import time
 
 
 def get_headless_webdriver():

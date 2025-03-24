@@ -1,7 +1,6 @@
 import keyboard
-import pyautogui
-import time
 import platform
+import pyautogui
 
 current_platform = platform.system()
 

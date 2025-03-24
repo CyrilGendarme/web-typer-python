@@ -1,10 +1,6 @@
-import platform
-import subprocess
-
-
-import platform
-import subprocess
 from enum import Enum
+import platform
+import subprocess
 
 
 class KeyboardLayout(Enum):

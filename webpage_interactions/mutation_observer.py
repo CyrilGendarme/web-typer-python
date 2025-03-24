@@ -1,6 +1,5 @@
 import os
 import sys
-import time
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import (
@@ -11,18 +10,10 @@ from selenium.common.exceptions import (
 root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.append(root_dir)
 
-from config import MUTATION_OBSERVER_BASE_POLL_INTERVAL
-from submodules.python_task_queue_scheduler.tasks_queue import TasksQueue
-from task_engine_extension.enums_and_mappings import UiToShow
-
-
-import time
-from selenium.webdriver.common.by import By
-from selenium.common.exceptions import (
-    NoSuchElementException,
-    StaleElementReferenceException,
+from web_typer_python.config import MUTATION_OBSERVER_BASE_POLL_INTERVAL
+from web_typer_python.submodules.python_task_queue_scheduler.tasks_queue import (
+    TasksQueue,
 )
-from selenium.webdriver.remote.webdriver import WebDriver
 
 
 def observe_dom_changes_with_trigger(
