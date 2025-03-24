@@ -51,72 +51,74 @@ def observe_dom_changes_with_trigger(
                 pass
             sys.exit(0)
 
-        target_element = driver.find_element(By.CSS_SELECTOR, target_selector)
-        current_html = target_element.get_attribute("outerHTML")
+        try:
 
-        if current_html != previous_html:
+            target_element = driver.find_element(By.CSS_SELECTOR, target_selector)
+            current_html = target_element.get_attribute("outerHTML")
 
-            trigger_detected = False
+            if current_html != previous_html:
 
-            for class_name in watched_classes:
-                try:
-                    if driver.find_element(By.CLASS_NAME, class_name):
-                        print(
-                            f"[DOM OBSERVER] Element with class '{class_name}' detected!"
-                        )
-                        trigger_detected = True
-                        break
-                except NoSuchElementException:
-                    continue
+                trigger_detected = False
 
-            if not trigger_detected:
-                for element_id in watched_ids:
+                for class_name in watched_classes:
                     try:
-                        if driver.find_element(By.ID, element_id):
+                        if driver.find_element(By.CLASS_NAME, class_name):
                             print(
-                                f"[DOM OBSERVER] Element with id '{element_id}' detected!"
+                                f"[DOM OBSERVER] Element with class '{class_name}' detected!"
                             )
                             trigger_detected = True
                             break
                     except NoSuchElementException:
                         continue
 
-            if not trigger_detected and watched_inner_text:
-                for text_snippet in watched_inner_text:
-                    if text_snippet in target_element.text:
-                        print(
-                            f"[DOM OBSERVER] Text snippet '{text_snippet}' found in inner text!"
+                if not trigger_detected:
+                    for element_id in watched_ids:
+                        try:
+                            if driver.find_element(By.ID, element_id):
+                                print(
+                                    f"[DOM OBSERVER] Element with id '{element_id}' detected!"
+                                )
+                                trigger_detected = True
+                                break
+                        except NoSuchElementException:
+                            continue
+
+                if not trigger_detected and watched_inner_text:
+                    for text_snippet in watched_inner_text:
+                        if text_snippet in target_element.text:
+                            print(
+                                f"[DOM OBSERVER] Text snippet '{text_snippet}' found in inner text!"
+                            )
+                            trigger_detected = True
+                            break
+
+                if not trigger_detected and watched_any_content_in_html:
+                    for content_snippet in watched_any_content_in_html:
+                        if content_snippet in current_html:
+                            print(
+                                f"[DOM OBSERVER] Snippet '{content_snippet}' found in HTML content!"
+                            )
+                            trigger_detected = True
+                            break
+
+                if trigger_detected:
+                    if task_queue:
+                        task_queue.add_task(
+                            task_enum,
+                            *task_args,
+                            True,
+                            task_to_top,
                         )
-                        trigger_detected = True
-                        break
+                    else:
+                        print("[DOM OBSERVER] Action triggered! (No queue provided)")
 
-            if not trigger_detected and watched_any_content_in_html:
-                for content_snippet in watched_any_content_in_html:
-                    if content_snippet in current_html:
-                        print(
-                            f"[DOM OBSERVER] Snippet '{content_snippet}' found in HTML content!"
-                        )
-                        trigger_detected = True
-                        break
+                # Update the HTML snapshot
+                previous_html = current_html
 
-            if trigger_detected:
-                if task_queue:
-                    task_queue.add_task(
-                        task_enum=task_enum,
-                        args=task_args,
-                        check_duplicate=True,
-                        add_to_top=task_to_top,
-                    )
-                else:
-                    print("[DOM OBSERVER] Action triggered! (No queue provided)")
-
-            # Update the HTML snapshot
-            previous_html = current_html
-
-        # except StaleElementReferenceException:
-        #     print(
-        #         "[DOM OBSERVER] StaleElementReferenceException: Re-locating target element..."
-        #     )
-        #     continue
-        # except Exception as e:
-        #     print(f"[DOM OBSERVER] Thread will exit - Error while observing DOM: {e}")
+        except StaleElementReferenceException:
+            print(
+                "[DOM OBSERVER] StaleElementReferenceException: Re-locating target element..."
+            )
+            continue
+        except Exception as e:
+            print(f"[DOM OBSERVER] Thread will exit - Error while observing DOM: {e}")
