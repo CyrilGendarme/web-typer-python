@@ -1,0 +1,3 @@
+[submodule "submodules/python_task_queue_scheduler"]
+	path = submodules/python_task_queue_scheduler
+	url = git@gitlab.com:CyrilGendarme/python-task-queue-scheduler.git
