@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import (
@@ -32,6 +33,7 @@ def observe_dom_changes_with_trigger(
     previous_html = None
 
     while True:
+        time.sleep(poll_interval)
 
         # Thread killing sequence if the driver is closed
         if not driver.title:
