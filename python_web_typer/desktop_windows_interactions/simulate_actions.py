@@ -1,16 +1,11 @@
-import os
-import sys
 import pyautogui
 import time
 
-root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-sys.path.append(root_dir)
-
-from desktop_windows_interactions.simulate_actions_base import (
+from python_web_typer.desktop_windows_interactions.simulate_actions_base import (
     press_keys_platform_dependent,
     type_text,
 )
-from desktop_windows_interactions.windows_selection import (
+from python_web_typer.desktop_windows_interactions.windows_selection import (
     is_file_selector_open,
     bring_window_to_front,
 )

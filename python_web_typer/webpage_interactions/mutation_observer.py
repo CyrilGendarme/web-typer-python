@@ -1,4 +1,3 @@
-import os
 import sys
 import time
 from selenium.webdriver.remote.webdriver import WebDriver
@@ -8,11 +7,8 @@ from selenium.common.exceptions import (
     StaleElementReferenceException,
 )
 
-root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-sys.path.append(root_dir)
-
-from web_typer_python.config import MUTATION_OBSERVER_BASE_POLL_INTERVAL
-from web_typer_python.submodules.python_task_queue_scheduler.tasks_queue import (
+from python_web_typer.config import MUTATION_OBSERVER_BASE_POLL_INTERVAL
+from submodules.python_task_queue_scheduler.task_queue.tasks_queue import (
     TasksQueue,
 )
 

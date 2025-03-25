@@ -1,14 +1,9 @@
-import os
-import sys
 import time
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.common.action_chains import ActionChains
 
-root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-sys.path.append(root_dir)
-
-from webpage_interactions.simulate_typing import simulate_typing
-from webpage_interactions.pick_webpage_element import (
+from python_web_typer.webpage_interactions.simulate_typing import simulate_typing
+from python_web_typer.webpage_interactions.pick_webpage_element import (
     ElementSelectorMethod,
     pick_element_by_class,
     pick_element_by_css_selector,
@@ -16,7 +11,7 @@ from webpage_interactions.pick_webpage_element import (
     pick_element_by_name,
     pick_element,
 )
-from webpage_interactions.simulate_click import simulate_click
+from python_web_typer.webpage_interactions.simulate_click import simulate_click
 
 
 #

@@ -1,0 +1,6 @@
+{
+    "python.analysis.extraPaths": [
+        "./submodules",
+        "./submodules/python_task_queue_scheduler"
+    ]
+}
