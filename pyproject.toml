@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "python-web-typer"
+version = "1.0.0"
+authors = [{ name = "Cyril Gendarme", email = "cyrilgendarme@email.com" }]
+keywords = ["webtyper", "dom observer", "autotyper", "autoclicker", "python"]
+dependencies = ["keyboard", "pyautogui", "selenium", "PyQt6", "psutil"]
+
+[tool.setuptools.packages.find]
+where = ["."]
