@@ -1,10 +1,10 @@
 from enum import Enum, auto
 
-from python_web_typer.desktop_windows_interactions.simulate_actions import (
+from ..desktop_windows_interactions.simulate_actions import (
     select_file_window,
 )
-from python_web_typer.task_engine_extension.tasks import *
-from python_web_typer.ui.captcha_wait import wait_for_captcha
+from ..task_engine_extension.tasks import *
+from ..ui.captcha_wait import wait_for_captcha
 
 
 # Define an Enums for strong typing of the pseudo-signals

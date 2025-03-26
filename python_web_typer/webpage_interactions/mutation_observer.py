@@ -7,7 +7,7 @@ from selenium.common.exceptions import (
     StaleElementReferenceException,
 )
 
-from python_web_typer.config import MUTATION_OBSERVER_BASE_POLL_INTERVAL
+from ..config import MUTATION_OBSERVER_BASE_POLL_INTERVAL
 from submodules.python_task_queue_scheduler.task_queue.tasks_queue import (
     TasksQueue,
 )

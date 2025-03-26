@@ -1,11 +1,11 @@
 import pyautogui
 import time
 
-from python_web_typer.desktop_windows_interactions.simulate_actions_base import (
+from ..desktop_windows_interactions.simulate_actions_base import (
     press_keys_platform_dependent,
     type_text,
 )
-from python_web_typer.desktop_windows_interactions.windows_selection import (
+from ..desktop_windows_interactions.windows_selection import (
     is_file_selector_open,
     bring_window_to_front,
 )
