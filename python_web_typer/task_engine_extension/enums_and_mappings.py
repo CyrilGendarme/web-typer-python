@@ -25,9 +25,7 @@ class UiToShow(Enum):
 
 
 class WebpageInteraction(Enum):
-    CLICK_COOKIE_BTN = auto()
-    TYPE_AND_CLICK_IN_SEARCH = auto()
-    CLICK_ON_FIRST_RESULT = auto()
+    GET_INTEREST_RATE_TABLE_DATA = auto()
 
 
 # Func mapping
@@ -41,9 +39,7 @@ common_func_map = {
 }
 
 webpage_interaction_func_map = {
-    WebpageInteraction.CLICK_COOKIE_BTN: click_cookie_btn,
-    WebpageInteraction.TYPE_AND_CLICK_IN_SEARCH: type_and_click_in_search,
-    WebpageInteraction.CLICK_ON_FIRST_RESULT: click_on_first_result,
+    WebpageInteraction.GET_INTEREST_RATE_TABLE_DATA: getInterestRateTableData,
 }
 
 ui_func_map = {

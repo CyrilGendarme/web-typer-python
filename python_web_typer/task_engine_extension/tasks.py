@@ -1,6 +1,11 @@
 import time
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.common.action_chains import ActionChains
+from bs4 import BeautifulSoup, Tag
+from datetime import datetime, date
+from decimal import Decimal
+from dataclasses import  dataclass
+import re
 
 from ..webpage_interactions.simulate_typing import simulate_typing
 from ..webpage_interactions.pick_webpage_element import (
@@ -12,6 +17,7 @@ from ..webpage_interactions.pick_webpage_element import (
     pick_element,
 )
 from ..webpage_interactions.simulate_click import simulate_click
+import csv
 
 
 #
@@ -139,44 +145,110 @@ def sleep(delay):
 #
 # Example in local main, kept to make it work but we prefer generic stuff
 #
-def click_cookie_btn(driver):
+@dataclass
+class InterestRate:
+    bank: str
+    tenor: str
+    effective_date: date
+    value_percent: Decimal
 
-    # click_element(driver, ElementSelectorMethod.ID, "L2AGLb")
+def read_table(table: Tag) -> list[list[str]]:
+    table_rows = []
+    for table_row in table.select("tr"):
+        cells = table_row.find_all("td")
 
-    cookie_btn = pick_element_by_id(driver, "L2AGLb")
-    if not cookie_btn:
-        print("Cookie button not found!")
-        return
-    simulate_click(driver, cookie_btn)
+        if len(cells) > 0:
+            cell_values = []
 
+            for cell in cells:
+                cell_values.append(cell.text.strip())
 
-# example
-def type_and_click_in_search(driver, text):
-
-    # type_into_element(driver, ElementSelectorMethod.NAME, "q", text)
-    # click_element(driver, ElementSelectorMethod.CLASS_NAME, "gNO89b")
-
-    search_box = pick_element_by_name(driver, "q")
-    if not search_box:
-        print("Search box not found!")
-        return
-    simulate_typing(driver, search_box, text)
-
-    search_btn = pick_element_by_class(driver, "gNO89b")
-    if not search_btn:
-        print("Search button not found!")
-        return
-    simulate_click(driver, search_btn)
+            table_rows.append(cell_values)
+    return table_rows
 
 
-# example
-def click_on_first_result(driver):
+def extract_number(text) -> Decimal | None:
+    """
+    Extract the first string number of the form:
+    -4
+    15.177
+    1,915.0
+    """
+    pattern = r"[-+]?(?:\d+(?:,\d\d\d)*(?:\.\d*)?|\.\d+)"
+    number_match = re.search(pattern, text)
+    if number_match:
+        num_str = number_match.group(0)
+        clean_num_str = num_str.replace(",", "")
+        return Decimal(clean_num_str)
+    else:
+        return None
 
-    # click_element(driver, ElementSelectorMethod.CSS_SELECTOR, "h3", 0)
 
-    first_result = pick_element_by_css_selector(driver, "h3")
-    if not first_result:
-        print("First search result not found!")
-        return
-    print(f"Clicking on: {first_result.text}")
-    simulate_click(driver, first_result)
+def getInterestRateTableData(driver, CSV_FILE):
+    page_html = BeautifulSoup(driver.page_source, features="lxml")
+    tables = page_html.find_all("table", attrs={"class": "jrPage"})
+    if len(tables) < 2:
+        raise Exception("Expected at least 2 tables on the page, found only", len(tables))
+
+    table = tables[1]  # Index 1 = Second table
+
+    table_rows = read_table(table)
+
+    # print("\n\n")
+    # print("---------- DEBUG 1 ----------")
+    # for row in table_rows:
+    #     print(row)
+
+    header_idx = -1
+    note_idx = -1
+    date_idx = -1
+
+    for idx, line in enumerate(table_rows):
+        firstCell = line[0]
+        if header_idx < 0 and firstCell.startswith("TERM"):
+            header_idx = idx
+        elif date_idx < 0 and firstCell.startswith("Effective date"):
+            date_idx = idx
+        elif note_idx < 1 and firstCell.startswith("Note"):
+            note_idx = idx
+
+    effective_date_str = table_rows[date_idx][0]
+    effective_date_str = (
+        effective_date_str.removeprefix("Effective date").removeprefix(":").strip()
+    )
+    effective_date = datetime.strptime(effective_date_str, "%m/%d/%Y")
+
+    if type(effective_date) is not datetime:
+        # log.critical("Unable to parse date", effective_date_str)
+        raise Exception("Unable to parse date", effective_date_str)
+
+    interest_rate_rows: list[InterestRate] = []
+    for line in table_rows[header_idx + 1 : note_idx]:
+        term = line[0]
+        value_str: str = line[1]
+        number_value = extract_number(value_str)
+        if number_value:
+            interest_rate_rows.append(
+                InterestRate(
+                    "State Bank of Vietnam", term, effective_date, number_value
+                )
+            )
+        # else:
+            # log.warn(f"Ignore line, value {value_str} is not a number", line)
+
+    # print("\n\n")
+    # print("---------- DEBUG 2 ----------")
+    # print(interest_rate_rows)
+    # print("\n\n")
+
+    # Save the result to a CSV file
+    with open(CSV_FILE, mode="w", newline="", encoding="utf-8") as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(["bank", "tenor", "effective_date", "value_percent"])
+        for row in interest_rate_rows:
+            writer.writerow([row.bank, row.tenor, row.effective_date, row.value_percent])
+
+    print(f"Interest rates saved to {CSV_FILE}")
+
+    return interest_rate_rows
+    

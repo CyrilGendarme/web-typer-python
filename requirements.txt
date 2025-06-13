@@ -1,0 +1,8 @@
+selenium
+pyautogui
+keyboard
+PyQt6
+psutil
+beautifulsoup4
+lxml
+csv

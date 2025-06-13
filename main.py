@@ -17,7 +17,8 @@ from submodules.python_task_queue_scheduler.task_queue.tasks_queue import (
 
 def run_test():
     # Some vars
-    website = "https://www.google.com"
+    website = "https://dttktt.sbv.gov.vn/webcenter/portal/en/home/rm/ir"
+    CSV_FILE = r"C:\Users\CyrilGendarme\Desktop\temp3\myfile.csv"
     captcha_specific_classes = ["g-recaptcha"]
     captcha_specific_ids = ["captcha-form", "recaptcha"]
 
@@ -30,14 +31,9 @@ def run_test():
     driver.get(website)
 
     # Add tasks to the queue
-    tasks_queue.add_task(WebpageInteraction.CLICK_COOKIE_BTN, driver)
-    tasks_queue.add_task(
-        WebpageInteraction.TYPE_AND_CLICK_IN_SEARCH,
-        driver,
-        "Selenium WebDriver Python",
-    )
-    tasks_queue.add_task(WebpageInteraction.CLICK_ON_FIRST_RESULT, driver)
-    tasks_queue.add_task(CommonTasks.SLEEP, 10)
+    tasks_queue.add_task(CommonTasks.SLEEP, 5)
+    tasks_queue.add_task(WebpageInteraction.GET_INTEREST_RATE_TABLE_DATA, driver, CSV_FILE)
+    tasks_queue.add_task(CommonTasks.SLEEP, 5)
 
     # Start the observer thread to detect CAPTCHA
     observer_thread = threading.Thread(
