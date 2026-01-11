@@ -135,6 +135,41 @@ def sleep(delay):
     time.sleep(delay)
 
 
+# core
+def type_keys(
+    driver: WebDriver,
+    method: ElementSelectorMethod,
+    identifier: str,
+    key: str,
+    nth: int = 0,
+):
+    """
+    Simulates pressing a keyboard key on a webpage element.
+
+    Args:
+        driver (WebDriver): Selenium WebDriver instance.
+        method (ElementSelectorMethod): Method to locate the element.
+        identifier (str): The selector of the element.
+        key (str): The key to press (use Keys.ENTER, Keys.TAB, etc.).
+        nth (int, optional): Index if multiple elements match (default: 0).
+
+    Returns:
+        None
+    """
+    element = pick_element(driver, method, identifier, nth)
+    if not element:
+        print(f"Could not find element {identifier} using {method.name}")
+        return
+
+    try:
+        # Option 1: send key directly to the element
+        element.send_keys(key)
+        # Option 2: use ActionChains for more control
+        # ActionChains(driver).send_keys_to_element(element, key).perform()
+    except Exception as e:
+        print(f"Error pressing key '{key}' on element {identifier}: {e}")
+
+
 #
 #
 # Example in local main, kept to make it work but we prefer generic stuff

@@ -17,6 +17,7 @@ class CommonTasks(Enum):
     TYPE_INTO_ELEMENT = auto()
     DRAG_AND_DROP_FILE = auto()
     SELECT_FILE_THROUGH_WINDOW = auto()
+    TYPE_KEYS = auto()
     NO_OP = auto()  # Represents no operation
 
 
@@ -37,6 +38,7 @@ common_func_map = {
     CommonTasks.TYPE_INTO_ELEMENT: type_into_element,
     CommonTasks.DRAG_AND_DROP_FILE: drag_and_drop_file,
     CommonTasks.SELECT_FILE_THROUGH_WINDOW: select_file_window,
+    CommonTasks.TYPE_KEYS: type_keys,
     CommonTasks.NO_OP: None,
 }
 
