@@ -4,6 +4,8 @@ from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
 from typing import List, Optional
 
+SELECTOR_DELIMITER = "|||"
+
 
 # Enum to allow generic func instead of code duplication in extending scripts
 class ElementSelectorMethod(Enum):
@@ -11,6 +13,8 @@ class ElementSelectorMethod(Enum):
     CLASS_NAME = auto()
     CSS_SELECTOR = auto()
     NAME = auto()
+    TAG_WITH_ATTRIBUTE = auto()
+    TAG_WITH_DESCENDANT_TEXT = auto()
 
 
 def pick_element(
@@ -38,6 +42,9 @@ def pick_element(
             return pick_element_by_css_selector(driver, identifier, nth)
         elif method.value == ElementSelectorMethod.NAME.value:
             return pick_element_by_name(driver, identifier)
+        elif method.value == ElementSelectorMethod.TAG_WITH_ATTRIBUTE.value:
+            return pick_element_by_tag_attribute(driver, identifier, nth)
+
         else:
             print(f"Method {method} is not supported in pick_element func")
             return None
@@ -54,26 +61,47 @@ def pick_elements(
 
     Args:
         driver (WebDriver): The Selenium WebDriver instance.
-        method (ElementSelectorMethod): The method to use (ID, CLASS_NAME, CSS_SELECTOR, NAME).
+        method (ElementSelectorMethod): The method to use (ID, CLASS_NAME, CSS_SELECTOR, NAME, TAG_WITH_ATTRIBUTE).
         identifier (str): The value used for element lookup.
 
     Returns:
-        List[WebElement]: A list of found elements.
+        List[WebElement]: A list of found elements. Empty if none found or method unsupported.
     """
-    # FIXME: to be refactored when required
-    pass
+    try:
+        if method.value == ElementSelectorMethod.ID.value:
+            # Only one element possible by ID
+            element = pick_element_by_id(driver, identifier)
+            return [element] if element else []
 
-    # try:
-    #     if method == ElementSelectorMethod.CLASS_NAME:
-    #         return driver.find_elements(By.CLASS_NAME, identifier)
-    #     elif method == ElementSelectorMethod.CSS_SELECTOR:
-    #         return driver.find_elements(By.CSS_SELECTOR, identifier)
-    #     else:
-    #         print(f"Method {method} does not support multiple elements")
-    #         return []
-    # except Exception as e:
-    #     print(f"Error finding elements with {method.value}: {e}")
-    #     return []
+        elif method.value == ElementSelectorMethod.CLASS_NAME.value:
+            return driver.find_elements(By.CLASS_NAME, identifier)
+
+        elif method.value == ElementSelectorMethod.CSS_SELECTOR.value:
+            return driver.find_elements(By.CSS_SELECTOR, identifier)
+
+        elif method.value == ElementSelectorMethod.NAME.value:
+            return driver.find_elements(By.NAME, identifier)
+
+        elif method.value == ElementSelectorMethod.TAG_WITH_ATTRIBUTE.value:
+            # identifier format: tag|||attribute|||value
+            try:
+                tag, attribute, value = identifier.split(SELECTOR_DELIMITER)
+                css = f'{tag}[{attribute}="{value}"]'
+                return driver.find_elements(By.CSS_SELECTOR, css)
+            except ValueError:
+                print(
+                    f"Error: Invalid format for TAG_WITH_ATTRIBUTE. "
+                    f"Expected 'tag{SELECTOR_DELIMITER}attribute{SELECTOR_DELIMITER}value', got '{identifier}'"
+                )
+                return []
+
+        else:
+            print(f"Method {method} is not supported in pick_elements func")
+            return []
+
+    except Exception as e:
+        print(f"Error finding elements with {method.value}: {e}")
+        return []
 
 
 def pick_element_by_id(driver: WebDriver, element_id: str) -> WebElement:
@@ -158,6 +186,37 @@ def pick_element_by_name(driver: WebDriver, name: str) -> WebElement:
         return element
     except Exception as e:
         print(f"Error finding element by name: {e}")
+        return None
+
+
+def pick_element_by_tag_attribute(
+    driver: WebDriver,
+    selector: str,
+    nth: int = 0,
+) -> Optional[WebElement]:
+    """
+    Picks the n-th element by tag name with a specific attribute/value.
+
+    Example CSS produced:
+        input[type="password"]
+    """
+    (tag, attribute, value) = selector.split(SELECTOR_DELIMITER)
+
+    try:
+        css = f'{tag}[{attribute}="{value}"]'
+        elements = driver.find_elements(By.CSS_SELECTOR, css)
+
+        if 0 <= nth < len(elements):
+            return elements[nth]
+
+        print(
+            f"Error: Index {nth} out of bounds for selector {css} "
+            f"(found {len(elements)} elements)"
+        )
+        return None
+
+    except Exception as e:
+        print(f"Error finding element by tag+attribute: {e}")
         return None
 
 
