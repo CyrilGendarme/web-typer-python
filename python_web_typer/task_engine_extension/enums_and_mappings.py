@@ -18,6 +18,7 @@ class CommonTasks(Enum):
     DRAG_AND_DROP_FILE = auto()
     SELECT_FILE_THROUGH_WINDOW = auto()
     TYPE_KEYS = auto()
+    ACCESS_URL = auto()
     NO_OP = auto()  # Represents no operation
 
 
@@ -39,6 +40,7 @@ common_func_map = {
     CommonTasks.DRAG_AND_DROP_FILE: drag_and_drop_file,
     CommonTasks.SELECT_FILE_THROUGH_WINDOW: select_file_window,
     CommonTasks.TYPE_KEYS: type_keys,
+    CommonTasks.ACCESS_URL: access_url,
     CommonTasks.NO_OP: None,
 }
 

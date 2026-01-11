@@ -170,6 +170,24 @@ def type_keys(
         print(f"Error pressing key '{key}' on element {identifier}: {e}")
 
 
+# core
+def access_url(driver: WebDriver, url: str):
+    """
+    Navigates the WebDriver to the specified URL.
+
+    Args:
+        driver (WebDriver): Selenium WebDriver instance.
+        url (str): The URL to navigate to.
+
+    Returns:
+        None
+    """
+    try:
+        driver.get(url)
+    except Exception as e:
+        print(f"Error accessing URL '{url}': {e}")
+
+
 #
 #
 # Example in local main, kept to make it work but we prefer generic stuff
