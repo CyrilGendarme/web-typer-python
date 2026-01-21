@@ -5,10 +5,6 @@ from selenium.webdriver.common.action_chains import ActionChains
 from ..webpage_interactions.simulate_typing import simulate_typing
 from ..webpage_interactions.pick_webpage_element import (
     ElementSelectorMethod,
-    pick_element_by_class,
-    pick_element_by_css_selector,
-    pick_element_by_id,
-    pick_element_by_name,
     pick_element,
 )
 from ..webpage_interactions.simulate_click import simulate_click
@@ -196,7 +192,7 @@ def click_cookie_btn(driver):
 
     # click_element(driver, ElementSelectorMethod.ID, "L2AGLb")
 
-    cookie_btn = pick_element_by_id(driver, "L2AGLb")
+    cookie_btn = pick_element(driver, ElementSelectorMethod.ID, "L2AGLb")
     if not cookie_btn:
         print("Cookie button not found!")
         return
@@ -209,13 +205,13 @@ def type_and_click_in_search(driver, text):
     # type_into_element(driver, ElementSelectorMethod.NAME, "q", text)
     # click_element(driver, ElementSelectorMethod.CLASS_NAME, "gNO89b")
 
-    search_box = pick_element_by_name(driver, "q")
+    search_box = pick_element(driver, ElementSelectorMethod.NAME, "q")
     if not search_box:
         print("Search box not found!")
         return
     simulate_typing(driver, search_box, text)
 
-    search_btn = pick_element_by_class(driver, "gNO89b")
+    search_btn = pick_element(driver, ElementSelectorMethod.CLASS_NAME, "gNO89b")
     if not search_btn:
         print("Search button not found!")
         return
@@ -227,7 +223,7 @@ def click_on_first_result(driver):
 
     # click_element(driver, ElementSelectorMethod.CSS_SELECTOR, "h3", 0)
 
-    first_result = pick_element_by_css_selector(driver, "h3")
+    first_result = pick_element(driver, ElementSelectorMethod.CSS_SELECTOR, "h3")
     if not first_result:
         print("First search result not found!")
         return
