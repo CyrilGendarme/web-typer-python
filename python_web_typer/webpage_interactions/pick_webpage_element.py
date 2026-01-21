@@ -14,7 +14,7 @@ class ElementSelectorMethod(Enum):
     CSS_SELECTOR = auto()
     NAME = auto()
     TAG_WITH_ATTRIBUTE = auto()
-    TAG_WITH_DESCENDANT_TEXT = auto()
+    TAG_WITH_CLASS_CONTAINS = auto()
 
 
 def pick_element(
@@ -44,10 +44,12 @@ def pick_element(
             return pick_element_by_name(driver, identifier)
         elif method.value == ElementSelectorMethod.TAG_WITH_ATTRIBUTE.value:
             return pick_element_by_tag_attribute(driver, identifier, nth)
+        elif method.value == ElementSelectorMethod.TAG_WITH_CLASS_CONTAINS.value:
+            # identifier format: tag|||class_substring
+            elements = pick_elements_by_tag_class_contains(driver, identifier)
+            if 0 <= nth < len(elements):
+                return elements[nth]
 
-        else:
-            print(f"Method {method} is not supported in pick_element func")
-            return None
     except Exception as e:
         print(f"Error finding element with {method.value}: {e}")
         return None
@@ -83,10 +85,18 @@ def pick_elements(
             return driver.find_elements(By.NAME, identifier)
 
         elif method.value == ElementSelectorMethod.TAG_WITH_ATTRIBUTE.value:
-            # identifier format: tag|||attribute|||value
-            try:
-                tag, attribute, value = identifier.split(SELECTOR_DELIMITER)
+            # identifier format: tag|||attribute|||value or tag|||attribute
+            parts = identifier.split(SELECTOR_DELIMITER)
+            tag = parts[0]
+            attribute = parts[1]
+            css = ""
+
+            if len(parts) == 3:
+                value = parts[2]
                 css = f'{tag}[{attribute}="{value}"]'
+            else:
+                css = f"{tag}[{attribute}]"  # attribute exists, value ignored
+            try:
                 return driver.find_elements(By.CSS_SELECTOR, css)
             except ValueError:
                 print(
@@ -94,6 +104,10 @@ def pick_elements(
                     f"Expected 'tag{SELECTOR_DELIMITER}attribute{SELECTOR_DELIMITER}value', got '{identifier}'"
                 )
                 return []
+
+        elif method.value == ElementSelectorMethod.TAG_WITH_CLASS_CONTAINS.value:
+            # identifier format: tag|||class_substring
+            return pick_elements_by_tag_class_contains(driver, identifier)
 
         else:
             print(f"Method {method} is not supported in pick_elements func")
@@ -116,6 +130,8 @@ def pick_element_by_id(driver: WebDriver, element_id: str) -> WebElement:
         WebElement: The element with the specified ID.
     """
     try:
+        print(f"element_id: {element_id}")
+
         element = driver.find_element(By.ID, element_id)
         return element
     except Exception as e:
@@ -200,10 +216,20 @@ def pick_element_by_tag_attribute(
     Example CSS produced:
         input[type="password"]
     """
-    (tag, attribute, value) = selector.split(SELECTOR_DELIMITER)
+
+    # identifier format: tag|||attribute|||value or tag|||attribute
+    parts = selector.split(SELECTOR_DELIMITER)
+    tag = parts[0]
+    attribute = parts[1]
+    css = ""
+
+    if len(parts) == 3:
+        value = parts[2]
+        css = f'{tag}[{attribute}="{value}"]'
+    else:
+        css = f"{tag}[{attribute}]"  # attribute exists, value ignored
 
     try:
-        css = f'{tag}[{attribute}="{value}"]'
         elements = driver.find_elements(By.CSS_SELECTOR, css)
 
         if 0 <= nth < len(elements):
@@ -218,6 +244,29 @@ def pick_element_by_tag_attribute(
     except Exception as e:
         print(f"Error finding element by tag+attribute: {e}")
         return None
+
+
+def pick_elements_by_tag_class_contains(
+    driver: WebDriver,
+    identifier: str,
+) -> List[WebElement]:
+    """
+    Picks all elements of a given tag whose class attribute contains a substring.
+
+    Example CSS:
+        input[class*="error-field"]
+        select[class*="error-field"]
+    """
+    parts = identifier.split(SELECTOR_DELIMITER)
+    tag = parts[0]
+    class_substring = parts[1]
+
+    css = f'{tag}[class*="{class_substring}"]'
+    try:
+        return driver.find_elements(By.CSS_SELECTOR, css)
+    except Exception as e:
+        print(f"Error finding elements by tag + class contains: {e}")
+        return []
 
 
 def is_element_present(
@@ -244,3 +293,29 @@ def is_element_present(
     except Exception as e:
         print(f"Error checking for element with {method.value}: {e}")
         return False
+
+
+def get_label_for_input(driver, input_element: WebElement) -> Optional[WebElement]:
+    """
+    Retrieves the <label> associated with an <input> element.
+
+    Uses the standard HTML 'for' -> 'id' relationship.
+
+    Args:
+        driver: Selenium WebDriver
+        input_element: The input WebElement
+
+    Returns:
+        WebElement | None: The associated label if found
+    """
+    try:
+        input_id = input_element.get_attribute("id")
+        if not input_id:
+            print("Input element has no id attribute")
+            return None
+
+        return driver.find_element(By.CSS_SELECTOR, f'label[for="{input_id}"]')
+
+    except Exception as e:
+        print(f"Error finding label for input: {e}")
+        return None
