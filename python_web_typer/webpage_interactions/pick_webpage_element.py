@@ -13,6 +13,7 @@ class ElementSelectorMethod(Enum):
     NAME = auto()
     TAG_WITH_ATTRIBUTE = auto()
     TAG_WITH_CLASS_CONTAINS = auto()
+    TAG_WITH_ATTRIBUTE_CONTAINS = auto()
 
 
 # ---------------------------
@@ -32,6 +33,15 @@ def _build_css_from_tag_attribute(identifier: str) -> str:
 def _build_css_from_tag_class_contains(identifier: str) -> str:
     tag, class_substring = identifier.split(SELECTOR_DELIMITER, 1)
     return f'{tag}[class*="{class_substring}"]'
+
+
+def _build_xpath_from_tag_attribute_contains(identifier: str) -> str:
+    """
+    identifier format:
+    tag|||attribute|||substring
+    """
+    tag, attribute, value_part = identifier.split(SELECTOR_DELIMITER, 2)
+    return f'.//{tag}[contains(@{attribute}, "{value_part}")]'
 
 
 def _resolve_selector(
@@ -57,6 +67,13 @@ def _resolve_selector(
 
     if method == ElementSelectorMethod.TAG_WITH_CLASS_CONTAINS:
         return By.CSS_SELECTOR, _build_css_from_tag_class_contains(identifier), False
+
+    if method == ElementSelectorMethod.TAG_WITH_ATTRIBUTE_CONTAINS:
+        return (
+            By.XPATH,
+            _build_xpath_from_tag_attribute_contains(identifier),
+            False,
+        )
 
     raise ValueError(f"Unsupported selector method: {method}")
 
