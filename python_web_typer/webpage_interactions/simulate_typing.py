@@ -1,10 +1,15 @@
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
 import time
+import random
 
 
 def simulate_typing(
-    driver: WebDriver, element: WebElement, value: str, delay: float = 0.05
+    driver: WebDriver,
+    element: WebElement,
+    value: str,
+    delay: float = 0.05,
+    shall_focus_out_after_typing: bool = True,
 ) -> None:
     """
     Simulates typing characters into an input field with delays and triggers related events.
@@ -13,14 +18,18 @@ def simulate_typing(
     :param element: WebElement representing the input field
     :param value: String value to type
     :param delay: Time (in seconds) between each keystroke
+    :param shall_focus_out_after_typing: Whether to trigger focusout, blur, and change events after typing
     """
 
     # Clear the field before typing
     element.clear()
 
     for char in value:
-        element.send_keys(char)  # Type character
-        time.sleep(delay)  # Mimic natural typing speed
+        # Mimic natural typing speed
+        random_delay = delay + random.uniform(-delay * 0.2, delay * 0.2)
+        time.sleep(random_delay)
+        # Type character
+        element.send_keys(char)
 
         # Dispatch JavaScript key events for realism
         driver.execute_script(
@@ -34,12 +43,13 @@ def simulate_typing(
             char,
         )
 
-    # Simulate blur and change events after typing
-    driver.execute_script(
-        """
-        arguments[0].dispatchEvent(new FocusEvent('focusout', { bubbles: true, cancelable: true }));
-        arguments[0].dispatchEvent(new FocusEvent('blur', { bubbles: true, cancelable: true }));
-        arguments[0].dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-    """,
-        element,
-    )
+    if shall_focus_out_after_typing:
+        # Simulate blur and change events after typing
+        driver.execute_script(
+            """
+            arguments[0].dispatchEvent(new FocusEvent('focusout', { bubbles: true, cancelable: true }));
+            arguments[0].dispatchEvent(new FocusEvent('blur', { bubbles: true, cancelable: true }));
+            arguments[0].dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+        """,
+            element,
+        )
