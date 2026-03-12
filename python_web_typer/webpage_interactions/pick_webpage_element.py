@@ -2,6 +2,9 @@ from enum import Enum, auto
 from typing import List, Optional, Tuple
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webdriver import WebDriver, WebElement
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+import time
 
 SELECTOR_DELIMITER = "|||"
 
@@ -87,16 +90,32 @@ def pick_elements(
     driver: WebDriver,
     method: ElementSelectorMethod,
     identifier: str,
+    wait_time: int = 10,  # seconds to wait for at least 1 element
 ) -> List[WebElement]:
-    try:
-        by, selector, single = _resolve_selector(method, identifier)
+    """
+    Picks all elements matching the selector.
+    If wait_time > 0, it waits until at least one element is present.
+    """
+    by, selector, single = _resolve_selector(method, identifier)
 
+    if wait_time > 0:
+        try:
+
+            def find_elements_present(driver):
+                elems = driver.find_elements(by, selector)
+                return elems if elems else False
+
+            return WebDriverWait(driver, wait_time).until(find_elements_present)
+        except Exception as e:
+            print(f"[pick_elements wait] {method.name}: {e}")
+            return []
+
+    # fallback: immediate pick
+    try:
         if single:
             element = driver.find_element(by, selector)
             return [element] if element else []
-
         return driver.find_elements(by, selector)
-
     except Exception as e:
         print(f"[pick_elements] {method.name}: {e}")
         return []
@@ -107,9 +126,31 @@ def pick_element(
     method: ElementSelectorMethod,
     identifier: str,
     nth: int = 0,
+    wait_time: int = 10,  # seconds to wait for element to appear
 ) -> Optional[WebElement]:
-    elements = pick_elements(driver, method, identifier)
+    """
+    Picks the nth element matching the selector.
+    If wait_time > 0, it will wait until the element is present.
+    """
+    if wait_time > 0:
+        by, selector, single = _resolve_selector(method, identifier)
+        try:
 
+            def find_nth(driver):
+                elements = driver.find_elements(by, selector)
+                if 0 <= nth < len(elements):
+                    return elements[nth]
+                return False  # keep waiting
+
+            element = WebDriverWait(driver, wait_time).until(find_nth)
+            return element
+
+        except Exception as e:
+            print(f"[pick_element wait] {method.name}: {e}")
+            return None
+
+    # fallback: immediate pick without wait
+    elements = pick_elements(driver, method, identifier)
     if 0 <= nth < len(elements):
         return elements[nth]
 
