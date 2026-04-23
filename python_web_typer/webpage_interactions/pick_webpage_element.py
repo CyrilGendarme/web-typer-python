@@ -90,7 +90,7 @@ def pick_elements(
     driver: WebDriver,
     method: ElementSelectorMethod,
     identifier: str,
-    wait_time: int = 10,  # seconds to wait for at least 1 element
+    wait_time: int = 0,  # seconds to wait for at least 1 element
 ) -> List[WebElement]:
     """
     Picks all elements matching the selector.
