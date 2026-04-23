@@ -10,6 +10,7 @@ def simulate_typing(
     value: str,
     delay: float = 0.05,
     shall_focus_out_after_typing: bool = True,
+    javascript_key_events_to_be_mimiced: bool = True,
 ) -> None:
     """
     Simulates typing characters into an input field with delays and triggers related events.
@@ -31,17 +32,18 @@ def simulate_typing(
         # Type character
         element.send_keys(char)
 
-        # Dispatch JavaScript key events for realism
-        driver.execute_script(
-            """
-            let eventOptions = { bubbles: true, cancelable: true, key: arguments[1], char: arguments[1] };
-            ['keydown', 'keypress', 'keyup'].forEach(eventType => {
-                arguments[0].dispatchEvent(new KeyboardEvent(eventType, eventOptions));
-            });
-        """,
-            element,
-            char,
-        )
+        if javascript_key_events_to_be_mimiced:
+            # Dispatch JavaScript key events for realism
+            driver.execute_script(
+                """
+                let eventOptions = { bubbles: true, cancelable: true, key: arguments[1], char: arguments[1] };
+                ['keydown', 'keypress', 'keyup'].forEach(eventType => {
+                    arguments[0].dispatchEvent(new KeyboardEvent(eventType, eventOptions));
+                });
+            """,
+                element,
+                char,
+            )
 
     if shall_focus_out_after_typing:
         # Simulate blur and change events after typing
