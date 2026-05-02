@@ -19,6 +19,7 @@ class CommonTasks(Enum):
     SELECT_FILE_THROUGH_WINDOW = auto()
     TYPE_KEYS = auto()
     ACCESS_URL = auto()
+    SCROLL_TO_BOTTOM = auto()
     NO_OP = auto()  # Represents no operation
 
 
@@ -41,6 +42,7 @@ common_func_map = {
     CommonTasks.SELECT_FILE_THROUGH_WINDOW: select_file_window,
     CommonTasks.TYPE_KEYS: type_keys,
     CommonTasks.ACCESS_URL: access_url,
+    CommonTasks.SCROLL_TO_BOTTOM: scroll_to_bottom,
     CommonTasks.NO_OP: None,
 }
 

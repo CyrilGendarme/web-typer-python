@@ -1,6 +1,7 @@
 import time
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.support.ui import WebDriverWait
 
 from ..webpage_interactions.simulate_typing import simulate_typing
 from ..webpage_interactions.pick_webpage_element import (
@@ -182,6 +183,53 @@ def access_url(driver: WebDriver, url: str):
         driver.get(url)
     except Exception as e:
         print(f"Error accessing URL '{url}': {e}")
+
+
+# core
+
+
+def scroll_to_bottom(driver: WebDriver):
+    # Ensure the page is fully loaded before starting the scroll pass.
+    WebDriverWait(driver, 10).until(
+        lambda d: d.execute_script("return document.readyState") == "complete"
+    )
+
+    # Scroll the largest scrollable container (LinkedIn often uses nested panes).
+    last_position = None
+    stable_iterations = 0
+    while True:
+        position = driver.execute_script("""
+            const all = Array.from(document.querySelectorAll('*'));
+            const scrollables = all.filter((el) => {
+                const style = window.getComputedStyle(el);
+                const overflowY = style.overflowY;
+                return (overflowY === 'auto' || overflowY === 'scroll') && el.scrollHeight > el.clientHeight + 20;
+            });
+
+            let target = document.scrollingElement || document.documentElement || document.body;
+            for (const el of scrollables) {
+                if (el.scrollHeight > target.scrollHeight) {
+                    target = el;
+                }
+            }
+
+            target.scrollTop = target.scrollHeight;
+            window.scrollTo(0, document.body.scrollHeight);
+
+            return [target.scrollTop, target.scrollHeight];
+            """)
+
+        sleep(0.5)
+
+        if position == last_position:
+            stable_iterations += 1
+        else:
+            stable_iterations = 0
+
+        if stable_iterations >= 1:
+            break
+
+        last_position = position
 
 
 #
