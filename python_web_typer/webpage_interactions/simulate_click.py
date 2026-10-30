@@ -1,52 +1,64 @@
+import logging
+
+from selenium.common.exceptions import TimeoutException, WebDriverException
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
+__all__ = ["simulate_click"]
+
+logger = logging.getLogger(__name__)
+
+
+def _click_with_mouse_events(driver: WebDriver, element: WebElement) -> None:
+    ActionChains(driver).move_to_element(element).click_and_hold().release().perform()
+
+
+def _click_with_focus(driver: WebDriver, element: WebElement) -> None:
+    driver.execute_script("arguments[0].focus();", element)
+    element.click()
+
+
+def _click_with_javascript(driver: WebDriver, element: WebElement) -> None:
+    driver.execute_script("arguments[0].click();", element)
+
+
+# Ordered from most to least human-like
+_CLICK_STRATEGIES = (
+    ("mouse events", _click_with_mouse_events),
+    ("focus + click", _click_with_focus),
+    ("JavaScript click", _click_with_javascript),
+)
+
 
 def simulate_click(
-    driver: WebDriver, element: WebElement, shall_scroll: bool = True
+    driver: WebDriver,
+    element: WebElement,
+    shall_scroll: bool = True,
+    wait_time: float = 10,
 ) -> bool:
     """Simulates user interaction by dispatching click-related events."""
 
-    # Wait until the element is clickable
-    WebDriverWait(driver, 10).until(EC.element_to_be_clickable(element))
-
-    # Scroll the element into view
+    # Center the element so sticky headers/footers don't intercept the click
     if shall_scroll:
-        driver.execute_script("arguments[0].scrollIntoView(true);", element)
+        driver.execute_script(
+            "arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});",
+            element,
+        )
 
-    actions = ActionChains(driver)
-
-    # Try using mouse events (mousedown, mouseup, click)
     try:
-        # print("Attempting to click using mouse events (mousedown, mouseup).")
-        actions.move_to_element(element).click_and_hold().release().perform()
-        # print("Mouse events (mousedown, mouseup) succeeded.")
-        return True
-    except Exception as e:
-        print(f"Mouse events failed: {e}")
+        WebDriverWait(driver, wait_time).until(EC.element_to_be_clickable(element))
+    except TimeoutException:
+        logger.warning("Element not clickable after %ss, trying anyway", wait_time)
 
-    # Try focusing and clicking the element directly
-    try:
-        # print("Attempting to click using element.focus() and element.click().")
-        driver.execute_script("arguments[0].focus();", element)
-        element.click()  # Perform actual click
-        # print("Element focus and click succeeded.")
-        return True
-    except Exception as e:
-        print(f"Element focus and click failed: {e}")
+    for name, strategy in _CLICK_STRATEGIES:
+        try:
+            strategy(driver, element)
+            return True
+        except WebDriverException as e:
+            logger.debug("Click via %s failed: %s", name, e)
 
-    # Try using JavaScript click event dispatch (in case the normal click doesn't work)
-    try:
-        # print("Attempting to click using JavaScript click event.")
-        driver.execute_script("arguments[0].click();", element)
-        # print("JavaScript click succeeded.")
-        return True
-    except Exception as e:
-        print(f"JavaScript click failed: {e}")
-
-    # If the element is still not clicked, throw an exception
-    print("All click attempts have failed...")
+    logger.error("All click attempts have failed")
     return False

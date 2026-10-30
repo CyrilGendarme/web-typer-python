@@ -1,50 +1,65 @@
-import sys
+import logging
 import platform
+import subprocess
+from typing import Iterable
+
+__all__ = ["is_file_selector_open", "bring_window_to_front"]
+
+logger = logging.getLogger(__name__)
 
 current_platform = platform.system()
-if current_platform == "Windows":
-    import pygetwindow as gw
-elif current_platform == "Linux":
-    import subprocess
-else:
-    print("Unsupported OS:", current_platform)
-    sys.exit(1)
 
 
-def is_file_selector_open(TARGET_WINDOW_TITLES):
+def _unsupported_platform() -> NotImplementedError:
+    return NotImplementedError(f"Window selection is not supported on {current_platform}")
+
+
+def is_file_selector_open(target_window_titles: Iterable[str]):
+    """
+    Returns the first window whose title contains one of `target_window_titles`
+    (case-insensitive): a pygetwindow Window on Windows, a `wmctrl -l` line on Linux.
+    """
+    targets = [t.lower() for t in target_window_titles]
+
     if current_platform == "Windows":
+        import pygetwindow as gw
 
-        windows = gw.getWindowsWithTitle("")
-        for window in windows:
-            for target in TARGET_WINDOW_TITLES:
-                if target.lower() in window.title.lower():
-                    return window
+        for window in gw.getAllWindows():
+            title = window.title.lower()
+            if any(target in title for target in targets):
+                return window
         return None
 
-    elif current_platform == "Linux":
-
+    if current_platform == "Linux":
         try:
-            output = subprocess.check_output(["wmctrl", "-l"]).decode()
-            for line in output.splitlines():
-                for target in TARGET_WINDOW_TITLES:
-                    if target.lower() in line.lower():
-                        return line
-        except Exception as e:
-            print(f"[ERROR] Linux window detection failed: {e}")
+            output = subprocess.check_output(["wmctrl", "-l"], text=True)
+        except (OSError, subprocess.CalledProcessError) as e:
+            logger.error("Linux window detection failed (is wmctrl installed?): %s", e)
+            return None
+        for line in output.splitlines():
+            lowered = line.lower()
+            if any(target in lowered for target in targets):
+                return line
         return None
 
+    raise _unsupported_platform()
 
-def bring_window_to_front(window):
+
+def bring_window_to_front(window) -> None:
+    if not window:
+        return
+
     if current_platform == "Windows":
-        if window:
-            window.activate()
-            window.maximize()  # Optional, ensure visibility
-            # time.sleep(0.5)
+        window.activate()
+        window.maximize()  # Optional, ensure visibility
+        return
 
-    elif current_platform == "Linux":
+    if current_platform == "Linux":
+        window_id = window.split()[0]
         try:
-            window_id = window.split()[0]
-            subprocess.call(["wmctrl", "-i", "-a", window_id])
-            # time.sleep(0.5)
-        except Exception as e:
-            print(f"[ERROR] Failed to bring window to front on Linux: {e}")
+            subprocess.run(["wmctrl", "-i", "-a", window_id], check=True)
+        except (OSError, subprocess.CalledProcessError) as e:
+            logger.error("Failed to bring window to front on Linux: %s", e)
+        return
+
+    raise _unsupported_platform()

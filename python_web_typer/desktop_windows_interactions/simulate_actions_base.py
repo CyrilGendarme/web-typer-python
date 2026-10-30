@@ -1,32 +1,33 @@
-import keyboard
+import logging
 import platform
+
+import keyboard
 import pyautogui
+
+__all__ = ["type_text", "press_keys_platform_dependent"]
+
+logger = logging.getLogger(__name__)
 
 current_platform = platform.system()
 
-
-def type_text(text):
-    for char in text:
-        keyboard.write(char)
-        # time.sleep(0.035)
+_PLATFORM_HOTKEY_KEYS = {"Windows": "win", "Linux": "linux"}
 
 
-def press_keys_platform_dependent(hotkeys: dict):
+def type_text(text: str) -> None:
+    # keyboard.write handles per-character emission (and non-ASCII) itself
+    keyboard.write(text)
+
+
+def press_keys_platform_dependent(hotkeys: dict) -> None:
     """
     Args:
         hotkeys (dict): Dictionary with two keys: 'win' and 'linux'.
                         Each maps to a list representing the hotkey sequence.
                         Example: { 'win': ['ctrl', 'l'], 'linux': ['shift', 'tab'] }
     """
-    keys = None
-
-    if current_platform == "Windows":
-        keys = hotkeys.get("win")
-    elif current_platform == "Linux":
-        keys = hotkeys.get("linux")
+    keys = hotkeys.get(_PLATFORM_HOTKEY_KEYS.get(current_platform, ""))
 
     if keys:
         pyautogui.hotkey(*keys)
-        # time.sleep(0.3)
     else:
-        print(f"[WARNING] No hotkeys defined for {current_platform}")
+        logger.warning("No hotkeys defined for %s", current_platform)

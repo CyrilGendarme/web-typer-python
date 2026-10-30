@@ -1,6 +1,10 @@
-from enum import Enum
+import logging
 import platform
 import subprocess
+from enum import Enum
+from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 class KeyboardLayout(Enum):
@@ -21,68 +25,69 @@ class KeyboardLayout(Enum):
     HEBREW = 0x040D
 
     @classmethod
-    def from_layout_code(cls, code):
-        for layout in cls:
-            if layout.value == code:
-                return layout
-        return None
+    def from_layout_code(cls, code: int) -> Optional["KeyboardLayout"]:
+        try:
+            return cls(code)
+        except ValueError:
+            return None
 
 
-def get_keyboard_layout():
+_LINUX_LAYOUTS = {"be": KeyboardLayout.FR_BE}
+
+
+def _layout_display_name(layout: KeyboardLayout) -> str:
+    return layout.name.replace("_", " ").title()
+
+
+def get_keyboard_layout() -> Optional[str]:
+    """Returns a human-readable name of the active keyboard layout, or None if undetectable."""
     current_platform = platform.system()
 
     if current_platform == "Windows":
         try:
             import win32api
-
-            layout = win32api.GetKeyboardLayout(0)
-
-            masked_layout = layout & 0xFFFF
-
-            layout_enum = KeyboardLayout.from_layout_code(masked_layout)
-
-            if layout_enum:
-                return layout_enum.name.replace(
-                    "_", " "
-                ).title()  # Or return layout_enum if you prefer
-            else:
-                return f"Other (0x{masked_layout:X})"
-
         except ImportError:
-            print("pywin32 is not installed. Unable to detect Windows keyboard layout.")
+            logger.warning("pywin32 is not installed. Unable to detect Windows keyboard layout.")
             return None
 
-    elif current_platform == "Linux":
+        masked_layout = win32api.GetKeyboardLayout(0) & 0xFFFF
+        layout_enum = KeyboardLayout.from_layout_code(masked_layout)
+        if layout_enum:
+            return _layout_display_name(layout_enum)
+        return f"Other (0x{masked_layout:X})"
+
+    if current_platform == "Linux":
         try:
-            layout = (
-                subprocess.check_output("setxkbmap -query | grep layout", shell=True)
-                .decode()
-                .strip()
-                .split(":")[1]
-                .strip()
-            )
-            if layout == "be":
-                return KeyboardLayout.FR_BE.name.replace("_", " ").title()
-            else:
-                return layout  # Could map more Linux layouts to enums if needed
-        except subprocess.CalledProcessError:
-            print("Unable to detect Linux keyboard layout using setxkbmap.")
+            output = subprocess.check_output(["setxkbmap", "-query"], text=True)
+        except (OSError, subprocess.CalledProcessError):
+            logger.warning("Unable to detect Linux keyboard layout using setxkbmap.")
             return None
-
-    elif current_platform == "Darwin":  # macOS
-        try:
-            layout = (
-                subprocess.check_output(
-                    "defaults read -g AppleKeyboardUIMode", shell=True
-                )
-                .decode()
-                .strip()
-            )
-            return layout
-        except subprocess.CalledProcessError:
-            print("Unable to detect macOS keyboard layout.")
-            return None
-
-    else:
-        print(f"Unsupported OS: {current_platform}")
+        for line in output.splitlines():
+            key, _, value = line.partition(":")
+            if key.strip() == "layout":
+                layout = value.strip()
+                # Could map more Linux layouts to enums if needed
+                if layout in _LINUX_LAYOUTS:
+                    return _layout_display_name(_LINUX_LAYOUTS[layout])
+                return layout
         return None
+
+    if current_platform == "Darwin":
+        try:
+            # e.g. "com.apple.keylayout.Belgian"
+            source_id = subprocess.check_output(
+                [
+                    "defaults",
+                    "read",
+                    "com.apple.HIToolbox",
+                    "AppleCurrentKeyboardLayoutInputSourceID",
+                ],
+                text=True,
+            ).strip()
+        except (OSError, subprocess.CalledProcessError):
+            logger.warning("Unable to detect macOS keyboard layout.")
+            return None
+        return source_id.rsplit(".", 1)[-1]
+
+    logger.warning("Unsupported OS: %s", current_platform)
+    return None

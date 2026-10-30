@@ -1,14 +1,31 @@
+import logging
 import time
-from selenium.webdriver.remote.webdriver import WebDriver
+
+from selenium.common.exceptions import TimeoutException, WebDriverException
 from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.support.ui import WebDriverWait
 
-from ..webpage_interactions.simulate_typing import simulate_typing
 from ..webpage_interactions.pick_webpage_element import (
     ElementSelectorMethod,
     pick_element,
 )
 from ..webpage_interactions.simulate_click import simulate_click
+from ..webpage_interactions.simulate_typing import simulate_typing
+
+__all__ = [
+    "click_element",
+    "type_into_element",
+    "drag_and_drop_file",
+    "sleep",
+    "type_keys",
+    "access_url",
+    "scroll_to_bottom",
+    "select_file_through_window",
+    "wait_for_captcha_task",
+]
+
+logger = logging.getLogger(__name__)
 
 
 #
@@ -17,7 +34,7 @@ from ..webpage_interactions.simulate_click import simulate_click
 #
 def click_element(
     driver: WebDriver, method: ElementSelectorMethod, identifier: str, nth: int = 0
-):
+) -> bool:
     """
     Clicks on a webpage element based on the specified selection method.
 
@@ -28,13 +45,13 @@ def click_element(
         nth (int, optional): Index of the element if multiple exist (default is 0).
 
     Returns:
-        None: Clicks the element if found, otherwise prints an error message.
+        bool: True if the element was found and clicked.
     """
     element = pick_element(driver, method, identifier, nth)
-    if element:
-        simulate_click(driver, element)
-    else:
-        print(f"Could not find element {identifier} using {method.name}")
+    if not element:
+        logger.error("Could not find element %s using %s", identifier, method.name)
+        return False
+    return simulate_click(driver, element)
 
 
 # core
@@ -44,7 +61,7 @@ def type_into_element(
     identifier: str,
     text: str,
     nth: int = 0,
-):
+) -> bool:
     """
     Finds a webpage element and types the given text into it.
 
@@ -56,13 +73,14 @@ def type_into_element(
         nth (int, optional): Index of the element if multiple exist (default is 0).
 
     Returns:
-        None: Types the given text if the element is found, otherwise prints an error message.
+        bool: True if the element was found and typed into.
     """
     element = pick_element(driver, method, identifier, nth)
-    if element:
-        simulate_typing(driver, element, text)
-    else:
-        print(f"Could not find element {identifier} using {method.name}")
+    if not element:
+        logger.error("Could not find element %s using %s", identifier, method.name)
+        return False
+    simulate_typing(driver, element, text)
+    return True
 
 
 # core
@@ -75,7 +93,7 @@ def drag_and_drop_file(
     file_path: str,
     nth_file_input: int = 0,
     nth_drop_zone: int = 0,
-):
+) -> bool:
     """
     Simulates dragging and dropping a file into a drop zone.
 
@@ -90,45 +108,46 @@ def drag_and_drop_file(
         nth_drop_zone (int, optional): Index of drop zone if multiple exist (default: 0).
     """
 
-    # Locate elements
     file_input = pick_element(
         driver, method_file_input, file_input_selector, nth_file_input
     )
-    drop_zone = pick_element(
-        driver, method_drop_zone, drop_zone_selector, nth_drop_zone
-    )
-
     if not file_input:
-        print(
-            f"Error: File input element not found using {method_file_input} - {file_input_selector}"
+        logger.error(
+            "File input element not found using %s - %s",
+            method_file_input.name,
+            file_input_selector,
         )
-        return
-
-    if not drop_zone:
-        print(
-            f"Warning: Drop zone element not found using {method_drop_zone} - {drop_zone_selector}"
-        )
-        print("Proceeding with direct file input upload.")
+        return False
 
     # Send file to hidden input
     file_input.send_keys(file_path)
 
-    # If drop zone exists, attempt a visual drag-and-drop
-    if drop_zone:
-        try:
-            action = ActionChains(driver)
-            action.click_and_hold(file_input).move_to_element(
-                drop_zone
-            ).release().perform()
-            print("Drag-and-drop simulation executed.")
-        except Exception as e:
-            print(f"Drag-and-drop action failed: {e}")
+    # The drop zone is optional: only look for it briefly, the upload already happened
+    drop_zone = pick_element(
+        driver, method_drop_zone, drop_zone_selector, nth_drop_zone, wait_time=2
+    )
+    if not drop_zone:
+        logger.warning(
+            "Drop zone not found using %s - %s, using direct file input upload only",
+            method_drop_zone.name,
+            drop_zone_selector,
+        )
+        return True
 
-    print("File upload process completed.")
+    # Attempt a visual drag-and-drop
+    try:
+        ActionChains(driver).click_and_hold(file_input).move_to_element(
+            drop_zone
+        ).release().perform()
+        logger.debug("Drag-and-drop simulation executed.")
+    except WebDriverException as e:
+        logger.warning("Drag-and-drop action failed: %s", e)
+
+    return True
 
 
 # core
-def sleep(delay):
+def sleep(delay: float) -> None:
     time.sleep(delay)
 
 
@@ -139,7 +158,7 @@ def type_keys(
     identifier: str,
     key: str,
     nth: int = 0,
-):
+) -> bool:
     """
     Simulates pressing a keyboard key on a webpage element.
 
@@ -149,131 +168,101 @@ def type_keys(
         identifier (str): The selector of the element.
         key (str): The key to press (use Keys.ENTER, Keys.TAB, etc.).
         nth (int, optional): Index if multiple elements match (default: 0).
-
-    Returns:
-        None
     """
     element = pick_element(driver, method, identifier, nth)
     if not element:
-        print(f"Could not find element {identifier} using {method.name}")
-        return
+        logger.error("Could not find element %s using %s", identifier, method.name)
+        return False
 
     try:
-        # Option 1: send key directly to the element
         element.send_keys(key)
-        # Option 2: use ActionChains for more control
-        # ActionChains(driver).send_keys_to_element(element, key).perform()
-    except Exception as e:
-        print(f"Error pressing key '{key}' on element {identifier}: {e}")
+        return True
+    except WebDriverException as e:
+        logger.error("Error pressing key %r on element %s: %s", key, identifier, e)
+        return False
 
 
 # core
-def access_url(driver: WebDriver, url: str):
-    """
-    Navigates the WebDriver to the specified URL.
-
-    Args:
-        driver (WebDriver): Selenium WebDriver instance.
-        url (str): The URL to navigate to.
-
-    Returns:
-        None
-    """
+def access_url(driver: WebDriver, url: str) -> bool:
+    """Navigates the WebDriver to the specified URL."""
     try:
         driver.get(url)
-    except Exception as e:
-        print(f"Error accessing URL '{url}': {e}")
+        return True
+    except WebDriverException as e:
+        logger.error("Error accessing URL %r: %s", url, e)
+        return False
+
+
+# Picks the element that actually scrolls (LinkedIn & co. use nested panes) once,
+# caches it on window, then scrolls it. Returns [scrollTop, scrollHeight].
+_SCROLL_TO_BOTTOM_JS = """
+let target = window.__pwtScrollTarget;
+if (!target || !target.isConnected) {
+    target = document.scrollingElement || document.documentElement;
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
+    for (let el = walker.nextNode(); el; el = walker.nextNode()) {
+        if (el.scrollHeight <= el.clientHeight + 20 || el.scrollHeight <= target.scrollHeight) continue;
+        const overflowY = getComputedStyle(el).overflowY;
+        if (overflowY === 'auto' || overflowY === 'scroll') target = el;
+    }
+    window.__pwtScrollTarget = target;
+}
+target.scrollTop = target.scrollHeight;
+if (target !== document.scrollingElement) window.scrollTo(0, document.body.scrollHeight);
+return [target.scrollTop, target.scrollHeight];
+"""
 
 
 # core
+def scroll_to_bottom(
+    driver: WebDriver,
+    pause: float = 0.5,
+    stable_rounds: int = 2,
+    max_rounds: int = 200,
+    page_load_timeout: float = 10,
+) -> None:
+    """
+    Scrolls the main scrollable container until its height stops growing.
 
+    Args:
+        pause: Seconds to wait after each scroll for lazy content to load.
+        stable_rounds: Consecutive unchanged readings required to stop.
+        max_rounds: Hard cap so infinite feeds don't scroll forever.
+        page_load_timeout: Max seconds to wait for document.readyState == 'complete'.
+    """
+    try:
+        WebDriverWait(driver, page_load_timeout).until(
+            lambda d: d.execute_script("return document.readyState") == "complete"
+        )
+    except TimeoutException:
+        logger.warning("Page not fully loaded after %ss, scrolling anyway", page_load_timeout)
 
-def scroll_to_bottom(driver: WebDriver):
-    # Ensure the page is fully loaded before starting the scroll pass.
-    WebDriverWait(driver, 10).until(
-        lambda d: d.execute_script("return document.readyState") == "complete"
-    )
-
-    # Scroll the largest scrollable container (LinkedIn often uses nested panes).
     last_position = None
-    stable_iterations = 0
-    while True:
-        position = driver.execute_script("""
-            const all = Array.from(document.querySelectorAll('*'));
-            const scrollables = all.filter((el) => {
-                const style = window.getComputedStyle(el);
-                const overflowY = style.overflowY;
-                return (overflowY === 'auto' || overflowY === 'scroll') && el.scrollHeight > el.clientHeight + 20;
-            });
+    unchanged = 0
+    for _ in range(max_rounds):
+        position = driver.execute_script(_SCROLL_TO_BOTTOM_JS)
+        time.sleep(pause)
 
-            let target = document.scrollingElement || document.documentElement || document.body;
-            for (const el of scrollables) {
-                if (el.scrollHeight > target.scrollHeight) {
-                    target = el;
-                }
-            }
-
-            target.scrollTop = target.scrollHeight;
-            window.scrollTo(0, document.body.scrollHeight);
-
-            return [target.scrollTop, target.scrollHeight];
-            """)
-
-        sleep(0.5)
-
-        if position == last_position:
-            stable_iterations += 1
-        else:
-            stable_iterations = 0
-
-        if stable_iterations >= 1:
-            break
-
+        unchanged = unchanged + 1 if position == last_position else 0
+        if unchanged >= stable_rounds:
+            return
         last_position = position
 
+    logger.info("scroll_to_bottom stopped after max_rounds=%d", max_rounds)
+
 
 #
 #
-# Example in local main, kept to make it work but we prefer generic stuff
+# Desktop / UI tasks: imported lazily so the Selenium-only path doesn't
+# need pyautogui, keyboard or PyQt6 (nor a display) to be importable.
 #
-def click_cookie_btn(driver):
+def select_file_through_window(directory_path: str, filename: str) -> None:
+    from ..desktop_windows_interactions.simulate_actions import select_file_window
 
-    # click_element(driver, ElementSelectorMethod.ID, "L2AGLb")
-
-    cookie_btn = pick_element(driver, ElementSelectorMethod.ID, "L2AGLb")
-    if not cookie_btn:
-        print("Cookie button not found!")
-        return
-    simulate_click(driver, cookie_btn)
+    select_file_window(directory_path, filename)
 
 
-# example
-def type_and_click_in_search(driver, text):
+def wait_for_captcha_task() -> bool:
+    from ..ui.captcha_wait import wait_for_captcha
 
-    # type_into_element(driver, ElementSelectorMethod.NAME, "q", text)
-    # click_element(driver, ElementSelectorMethod.CLASS_NAME, "gNO89b")
-
-    search_box = pick_element(driver, ElementSelectorMethod.NAME, "q")
-    if not search_box:
-        print("Search box not found!")
-        return
-    simulate_typing(driver, search_box, text)
-
-    search_btn = pick_element(driver, ElementSelectorMethod.CLASS_NAME, "gNO89b")
-    if not search_btn:
-        print("Search button not found!")
-        return
-    simulate_click(driver, search_btn)
-
-
-# example
-def click_on_first_result(driver):
-
-    # click_element(driver, ElementSelectorMethod.CSS_SELECTOR, "h3", 0)
-
-    first_result = pick_element(driver, ElementSelectorMethod.CSS_SELECTOR, "h3")
-    if not first_result:
-        print("First search result not found!")
-        return
-    print(f"Clicking on: {first_result.text}")
-    simulate_click(driver, first_result)
+    return wait_for_captcha()

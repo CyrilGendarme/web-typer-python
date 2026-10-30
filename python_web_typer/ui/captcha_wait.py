@@ -1,6 +1,12 @@
+import logging
 import sys
-from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QLabel
+
 from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtWidgets import QApplication, QLabel, QPushButton, QVBoxLayout, QWidget
+
+__all__ = ["CaptchaWaitWindow", "wait_for_captcha"]
+
+logger = logging.getLogger(__name__)
 
 
 class CaptchaWaitWindow(QWidget):
@@ -34,24 +40,30 @@ class CaptchaWaitWindow(QWidget):
         self.close()
 
 
-def wait_for_captcha():
-    """Open the CAPTCHA popup window and block execution until user response."""
+def wait_for_captcha() -> bool:
+    """
+    Open the CAPTCHA popup window and block until the user answers.
 
-    # Initialize QApplication only once (inside wait_for_captcha function)
-    app = QApplication(sys.argv)
+    Returns:
+        bool: True if the user confirmed the CAPTCHA is solved, False otherwise
+        (including when the window is closed without answering).
+    """
 
-    # Create the CAPTCHA window (this is where user interacts)
+    # Reuse the existing QApplication: creating a second one crashes Qt
+    app = QApplication.instance() or QApplication(sys.argv)
+
+    result = False
+
+    def on_result(solved: bool) -> None:
+        nonlocal result
+        result = solved
+
     window = CaptchaWaitWindow()
-
-    # Connect the signal to a function (this function will execute when user clicks a button)
-    window.captcha_result_signal.connect(
-        lambda result: print(f"Captcha result: {result}")
-    )
-
-    # Show the window to the user
+    window.captcha_result_signal.connect(on_result)
     window.show()
 
-    # Start the event loop and block further code execution until the window is closed
+    # Blocks until the window is closed
     app.exec()
 
-    return window
+    logger.info("Captcha result: %s", result)
+    return result

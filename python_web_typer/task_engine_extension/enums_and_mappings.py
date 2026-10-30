@@ -1,10 +1,30 @@
 from enum import Enum, auto
 
-from ..desktop_windows_interactions.simulate_actions import (
-    select_file_window,
+from .example_tasks import (
+    click_cookie_btn,
+    click_on_first_result,
+    type_and_click_in_search,
 )
-from ..task_engine_extension.tasks import *
-from ..ui.captcha_wait import wait_for_captcha
+from .tasks import (
+    access_url,
+    click_element,
+    drag_and_drop_file,
+    scroll_to_bottom,
+    select_file_through_window,
+    sleep,
+    type_into_element,
+    type_keys,
+    wait_for_captcha_task,
+)
+
+__all__ = [
+    "CommonTasks",
+    "UiToShow",
+    "WebpageInteraction",
+    "common_func_map",
+    "webpage_interaction_func_map",
+    "ui_func_map",
+]
 
 
 # Define an Enums for strong typing of the pseudo-signals
@@ -33,17 +53,22 @@ class WebpageInteraction(Enum):
     CLICK_ON_FIRST_RESULT = auto()
 
 
+def _no_op(*_args) -> None:
+    pass
+
+
 # Func mapping
 common_func_map = {
     CommonTasks.SLEEP: sleep,
     CommonTasks.CLICK_ELEMENT: click_element,
     CommonTasks.TYPE_INTO_ELEMENT: type_into_element,
     CommonTasks.DRAG_AND_DROP_FILE: drag_and_drop_file,
-    CommonTasks.SELECT_FILE_THROUGH_WINDOW: select_file_window,
+    CommonTasks.SELECT_FILE_THROUGH_WINDOW: select_file_through_window,
     CommonTasks.TYPE_KEYS: type_keys,
     CommonTasks.ACCESS_URL: access_url,
     CommonTasks.SCROLL_TO_BOTTOM: scroll_to_bottom,
-    CommonTasks.NO_OP: None,
+    # A callable (not None) so the queue can execute and dequeue it
+    CommonTasks.NO_OP: _no_op,
 }
 
 webpage_interaction_func_map = {
@@ -53,5 +78,5 @@ webpage_interaction_func_map = {
 }
 
 ui_func_map = {
-    UiToShow.CAPTCHA: wait_for_captcha,
+    UiToShow.CAPTCHA: wait_for_captcha_task,
 }

@@ -7,7 +7,16 @@ name = "python-web-typer"
 version = "1.0.0"
 authors = [{ name = "Cyril Gendarme", email = "cyrilgendarme@email.com" }]
 keywords = ["webtyper", "dom observer", "autotyper", "autoclicker", "python"]
-dependencies = ["keyboard", "pyautogui", "selenium", "PyQt6", "psutil"]
+requires-python = ">=3.9"
+dependencies = [
+    "selenium>=4.11",
+    "psutil>=6.0",
+    "keyboard",
+    "pyautogui",
+    "PyQt6",
+    "pygetwindow; platform_system == 'Windows'",
+    "pywin32; platform_system == 'Windows'",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
