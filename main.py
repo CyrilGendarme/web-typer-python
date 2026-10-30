@@ -14,7 +14,7 @@ from python_web_typer.task_engine_extension.runner import run_all_tasks
 from python_web_typer.webpage_interactions.mutation_observer import (
     start_dom_observer_thread,
 )
-from python_web_typer.webpage_interactions.pick_webdriver import get_chrome_webdriver
+from python_web_typer.webpage_interactions.pick_webdriver import get_webdriver
 
 from submodules.python_task_queue_scheduler.task_queue.tasks_queue import TasksQueue
 
@@ -30,7 +30,7 @@ def run_test() -> None:
     tasks_queue = TasksQueue([webpage_interaction_func_map, common_func_map])
     ui_interaction_queue = TasksQueue([ui_func_map])
 
-    driver = get_chrome_webdriver()
+    driver = get_webdriver()
     stop_observer = threading.Event()
 
     try:

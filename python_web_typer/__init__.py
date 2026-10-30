@@ -12,6 +12,7 @@ from .task_engine_extension.enums_and_mappings import *
 from .task_engine_extension.example_tasks import *
 from .task_engine_extension.runner import *
 from .task_engine_extension.tasks import *
+from .webpage_interactions.browsers import *
 from .webpage_interactions.mutation_observer import *
 from .webpage_interactions.pick_webdriver import *
 from .webpage_interactions.pick_webpage_element import *
