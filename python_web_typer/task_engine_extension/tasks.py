@@ -6,6 +6,8 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.support.ui import WebDriverWait
 
+from ..config import SCROLL_PAUSE
+from ..humanize import Number, draw
 from ..webpage_interactions.pick_webpage_element import (
     ElementSelectorMethod,
     pick_element,
@@ -147,8 +149,8 @@ def drag_and_drop_file(
 
 
 # core
-def sleep(delay: float) -> None:
-    time.sleep(delay)
+def sleep(delay: Number) -> None:
+    time.sleep(draw(delay))
 
 
 # core
@@ -216,20 +218,22 @@ return [target.scrollTop, target.scrollHeight];
 # core
 def scroll_to_bottom(
     driver: WebDriver,
-    pause: float = 0.5,
+    pause: Number = SCROLL_PAUSE,
     stable_rounds: int = 2,
-    max_rounds: int = 200,
+    max_rounds: Number = 200,
     page_load_timeout: float = 10,
 ) -> None:
     """
     Scrolls the main scrollable container until its height stops growing.
 
     Args:
-        pause: Seconds to wait after each scroll for lazy content to load.
+        pause: Seconds to wait after each scroll for lazy content to load
+            (drawn anew after each scroll).
         stable_rounds: Consecutive unchanged readings required to stop.
         max_rounds: Hard cap so infinite feeds don't scroll forever.
         page_load_timeout: Max seconds to wait for document.readyState == 'complete'.
     """
+    max_rounds = draw(max_rounds)
     try:
         WebDriverWait(driver, page_load_timeout).until(
             lambda d: d.execute_script("return document.readyState") == "complete"
@@ -241,7 +245,7 @@ def scroll_to_bottom(
     unchanged = 0
     for _ in range(max_rounds):
         position = driver.execute_script(_SCROLL_TO_BOTTOM_JS)
-        time.sleep(pause)
+        time.sleep(draw(pause))
 
         unchanged = unchanged + 1 if position == last_position else 0
         if unchanged >= stable_rounds:

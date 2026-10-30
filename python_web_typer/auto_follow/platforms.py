@@ -54,7 +54,7 @@ def _facebook_listing_pages(driver: WebDriver, spec: PlatformSpec, settings: dic
     if not wait_for(driver, friends, timeout=15):
         logger.warning("[facebook] Your friend list could not be read (logged in?)")
         return
-    scroll_to_bottom(driver, pause=1, max_rounds=3)
+    scroll_to_bottom(driver, max_rounds=settings["search_scrolls"])
 
     own_friends = {spec.account_id(url) for url, _ in friends(driver)} - {None}
     logger.info("[facebook] %d friends found", len(own_friends))

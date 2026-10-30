@@ -11,6 +11,7 @@ import logging
 import time
 from typing import Optional
 
+from ..humanize import Number, draw
 from submodules.python_task_queue_scheduler.task_queue.tasks_queue import (
     TasksQueue,
 )
@@ -41,7 +42,7 @@ def run_next_task(task_queue: TasksQueue) -> bool:
 def run_all_tasks(
     task_queue: TasksQueue,
     priority_queue: Optional[TasksQueue] = None,
-    pause_between_tasks: float = 0,
+    pause_between_tasks: Number = 0,
 ) -> None:
     """
     Runs `task_queue` until empty. Before each task, `priority_queue` (e.g. UI
@@ -54,4 +55,4 @@ def run_all_tasks(
         if not run_next_task(task_queue):
             return
         if pause_between_tasks:
-            time.sleep(pause_between_tasks)
+            time.sleep(draw(pause_between_tasks))

@@ -1,8 +1,10 @@
-import random
 import time
 
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
+
+from ..config import TYPING_DELAY
+from ..humanize import Number, draw
 
 __all__ = ["simulate_typing"]
 
@@ -24,7 +26,7 @@ def simulate_typing(
     driver: WebDriver,
     element: WebElement,
     value: str,
-    delay: float = 0.05,
+    delay: Number = TYPING_DELAY,
     shall_focus_out_after_typing: bool = True,
     javascript_key_events_to_be_mimiced: bool = False,
 ) -> None:
@@ -34,7 +36,7 @@ def simulate_typing(
     :param driver: Selenium WebDriver instance
     :param element: WebElement representing the input field
     :param value: String value to type
-    :param delay: Time (in seconds) between each keystroke (+/- 20% jitter)
+    :param delay: Time (in seconds) between each keystroke, drawn anew per keystroke
     :param shall_focus_out_after_typing: Whether to trigger focusout, blur, and change events after typing
     :param javascript_key_events_to_be_mimiced: Also dispatch synthetic JS key events per character.
         send_keys already emits trusted key events, so this is only needed for pages that
@@ -46,7 +48,7 @@ def simulate_typing(
 
     for char in value:
         # Mimic natural typing speed
-        time.sleep(delay * random.uniform(0.8, 1.2))
+        time.sleep(draw(delay))
         element.send_keys(char)
 
         if javascript_key_events_to_be_mimiced:

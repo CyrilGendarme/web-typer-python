@@ -5,6 +5,7 @@ from typing import Any, Optional, Sequence
 from selenium.common.exceptions import JavascriptException, WebDriverException
 from selenium.webdriver.remote.webdriver import WebDriver
 
+from ..humanize import Number, draw
 from ..config import (
     MUTATION_OBSERVER_BASE_POLL_INTERVAL,
     MUTATION_OBSERVER_MAX_CONSECUTIVE_ERRORS,
@@ -45,7 +46,7 @@ def observe_dom_changes_with_trigger(
     watched_any_content_in_html: Sequence[str] = (),
     target_selector: str = "body",
     task_queue: Optional[TasksQueue] = None,
-    poll_interval: float = MUTATION_OBSERVER_BASE_POLL_INTERVAL,
+    poll_interval: Number = MUTATION_OBSERVER_BASE_POLL_INTERVAL,
     task_enum: Any = None,
     task_args: Sequence[Any] = (),
     task_to_top: bool = False,
@@ -69,7 +70,7 @@ def observe_dom_changes_with_trigger(
     was_detected = False
     consecutive_errors = 0
 
-    while not stop_event.wait(poll_interval):
+    while not stop_event.wait(draw(poll_interval)):
         try:
             match = driver.execute_script(_DETECT_TRIGGER_JS, *script_args)
             consecutive_errors = 0

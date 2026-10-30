@@ -11,6 +11,7 @@ from typing import Dict, List, Optional
 from selenium.webdriver.remote.webdriver import WebDriver
 
 from ..config import AUTO_FOLLOW, AUTO_FOLLOW_DB_PATH, AUTO_FOLLOW_DEFAULTS
+from ..humanize import draw
 from .engine import FollowSession, run_listing, run_search
 from .platforms import PLATFORMS
 from .store import FollowedStore
@@ -33,7 +34,8 @@ def auto_follow(
 ) -> int:
     """
     Follows up to `max_follows` new accounts on `platform` (config.AUTO_FOLLOW),
-    within `max_follows_per_24h`. Returns the number of accounts followed.
+    within `max_follows_per_24h`, both drawn at random for this run.
+    Returns the number of accounts followed.
     """
     spec = PLATFORMS[platform]
     settings = platform_settings(platform)
@@ -41,8 +43,9 @@ def auto_follow(
     store = store or FollowedStore(AUTO_FOLLOW_DB_PATH)
 
     try:
-        remaining_24h = settings["max_follows_per_24h"] - store.count_followed_last_24h(platform)
-        quota = min(settings["max_follows"], remaining_24h)
+        # Both caps drawn anew each run, never above their configured max
+        remaining_24h = draw(settings["max_follows_per_24h"]) - store.count_followed_last_24h(platform)
+        quota = min(draw(settings["max_follows"]), remaining_24h)
         if quota <= 0:
             logger.info("[%s] 24h follow cap reached, skipping", platform)
             return 0

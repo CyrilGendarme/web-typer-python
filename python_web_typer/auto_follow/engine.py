@@ -11,7 +11,14 @@ from urllib.parse import quote_plus
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
 
-from ..config import AUTO_FOLLOW_BROWSE_DELAY_RANGE, AUTO_FOLLOW_FOLLOW_DELAY_RANGE
+from ..config import (
+    AUTO_FOLLOW_BROWSE_DELAY,
+    AUTO_FOLLOW_FOLLOW_DELAY,
+    AUTO_FOLLOW_IDLE_SCROLLS,
+    AUTO_FOLLOW_PROFILE_VISITS_PER_TERM,
+    SCROLL_PAUSE,
+)
+from ..humanize import draw, upper_bound
 from ..task_engine_extension.tasks import scroll_to_bottom
 from ..webpage_interactions.simulate_click import simulate_click
 from .counts import find_follower_count
@@ -47,10 +54,6 @@ FOLLOW_LABELS = (
 # Follow clicks that didn't change the button, in a row, before giving up on a
 # platform (usually: logged out, rate limited or action blocked)
 _MAX_CONSECUTIVE_FAILURES = 3
-# Profiles opened per search request, bounds the time spent on one term
-_MAX_PROFILE_VISITS_PER_TERM = 25
-# Scrolls without any new card before leaving a listing page
-_MAX_IDLE_SCROLLS = 3
 
 
 @dataclass(frozen=True)
@@ -85,10 +88,6 @@ class PlatformSpec:
         return None if account_id in self.reserved_ids else account_id
 
 
-def _pause(delay_range: Tuple[float, float]) -> None:
-    time.sleep(random.uniform(*delay_range))
-
-
 @dataclass
 class FollowSession:
     driver: WebDriver
@@ -104,7 +103,7 @@ class FollowSession:
         return self.aborted or self.followed >= self.quota
 
     def browse_pause(self) -> None:
-        _pause(AUTO_FOLLOW_BROWSE_DELAY_RANGE)
+        time.sleep(draw(AUTO_FOLLOW_BROWSE_DELAY))
 
     def click_follow(
         self,
@@ -144,7 +143,7 @@ class FollowSession:
             f", {follower_count} followers" if follower_count is not None else "",
         )
         if not self.done:
-            _pause(AUTO_FOLLOW_FOLLOW_DELAY_RANGE)
+            time.sleep(draw(AUTO_FOLLOW_FOLLOW_DELAY))
         return True
 
 
@@ -155,7 +154,9 @@ class FollowSession:
 
 def run_search(session: FollowSession, settings: dict) -> None:
     driver, spec, store = session.driver, session.spec, session.store
+    # Drawn anew for each account; skips above the hard cap are never reconsidered
     max_followers = settings["max_followers"]
+    max_followers_cap = upper_bound(max_followers)
     terms = list(settings.get("search_terms") or ())
     if not terms:
         logger.warning("[%s] No search_terms configured", spec.name)
@@ -173,21 +174,23 @@ def run_search(session: FollowSession, settings: dict) -> None:
             logger.info("[%s] No results for %r", spec.name, term)
             continue
         session.browse_pause()
-        scroll_to_bottom(driver, pause=1, max_rounds=settings.get("search_scrolls", 3))
+        scroll_to_bottom(driver, max_rounds=settings["search_scrolls"])
         candidates = profiles(driver)
         logger.info("[%s] %r: %d accounts found", spec.name, term, len(candidates))
 
         visits = 0
+        max_visits = draw(AUTO_FOLLOW_PROFILE_VISITS_PER_TERM)
         for url, card_text in candidates:
-            if session.done or visits >= _MAX_PROFILE_VISITS_PER_TERM:
+            if session.done or visits >= max_visits:
                 break
             account_id = spec.account_id(url)
-            if not account_id or store.is_known(spec.name, account_id, max_followers):
+            if not account_id or store.is_known(spec.name, account_id, max_followers_cap):
                 continue
 
             # Skip the profile visit when the search card already shows the count
+            threshold = draw(max_followers)
             count = find_follower_count(card_text)
-            if count is not None and count >= max_followers:
+            if count is not None and count >= threshold:
                 store.mark(spec.name, account_id, SKIPPED, url, count)
                 continue
 
@@ -202,7 +205,7 @@ def run_search(session: FollowSession, settings: dict) -> None:
             if count is None:
                 logger.info("[%s] Follower count of %s not found", spec.name, account_id)
                 continue
-            if count >= max_followers:
+            if count >= threshold:
                 store.mark(spec.name, account_id, SKIPPED, url, count)
                 continue
 
@@ -246,7 +249,8 @@ def run_listing(session: FollowSession, settings: dict) -> None:
 
         seen = set()
         idle_scrolls = 0
-        while not session.done and idle_scrolls < _MAX_IDLE_SCROLLS:
+        max_idle_scrolls = draw(AUTO_FOLLOW_IDLE_SCROLLS)
+        while not session.done and idle_scrolls < max_idle_scrolls:
             fresh = False
             for button, url in find_follow_buttons_with_profiles(
                 driver, spec.follow_labels, spec.profile_url_re, spec.listing_scope_css
@@ -264,4 +268,4 @@ def run_listing(session: FollowSession, settings: dict) -> None:
 
             idle_scrolls = 0 if fresh else idle_scrolls + 1
             scroll_scope(driver, spec.listing_scope_css)
-            time.sleep(1.5)
+            time.sleep(draw(SCROLL_PAUSE))
