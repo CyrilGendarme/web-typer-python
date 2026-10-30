@@ -8,6 +8,7 @@ package doesn't require those libraries or a display.
 
 import importlib
 
+from .auto_follow import *
 from .task_engine_extension.enums_and_mappings import *
 from .task_engine_extension.example_tasks import *
 from .task_engine_extension.runner import *

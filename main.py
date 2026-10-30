@@ -1,7 +1,18 @@
+"""
+Usage:
+    python main.py login [platform ...]    log in once, kept in the browser profile
+    python main.py follow [platform ...]   auto-follow (default: enabled platforms)
+    python main.py stats                   accounts followed/skipped per platform
+    python main.py demo                    Google search demo
+"""
+
+import argparse
 import logging
 import threading
+from contextlib import contextmanager
 
-from python_web_typer.config import DEBUG, DEBUG_DELAY, LOG_LEVEL
+from python_web_typer.auto_follow import PLATFORMS, FollowedStore, enabled_platforms
+from python_web_typer.config import AUTO_FOLLOW_DB_PATH, DEBUG, DEBUG_DELAY, LOG_LEVEL
 from python_web_typer.task_engine_extension.enums_and_mappings import (
     CommonTasks,
     UiToShow,
@@ -20,23 +31,47 @@ from submodules.python_task_queue_scheduler.task_queue.tasks_queue import TasksQ
 
 logger = logging.getLogger(__name__)
 
-WEBSITE = "https://www.google.com"
-CAPTCHA_SPECIFIC_CLASSES = ["g-recaptcha"]
-CAPTCHA_SPECIFIC_IDS = ["captcha-form", "recaptcha"]
+DEMO_WEBSITE = "https://www.google.com"
+# reCAPTCHA, hCaptcha, Cloudflare Turnstile / challenge page
+CAPTCHA_SPECIFIC_CLASSES = ["g-recaptcha", "h-captcha", "cf-turnstile"]
+CAPTCHA_SPECIFIC_IDS = ["captcha-form", "recaptcha", "challenge-form"]
 
 
-def run_test() -> None:
-    # Create queues
+@contextmanager
+def browser_session():
+    """
+    Yields (driver, tasks_queue) with a CAPTCHA observer running: when a CAPTCHA
+    shows up, a "solved?" prompt is queued ahead of the next task.
+    """
     tasks_queue = TasksQueue([webpage_interaction_func_map, common_func_map])
     ui_interaction_queue = TasksQueue([ui_func_map])
-
     driver = get_webdriver()
     stop_observer = threading.Event()
 
     try:
-        driver.get(WEBSITE)
+        start_dom_observer_thread(
+            driver,
+            stop_event=stop_observer,
+            watched_classes=CAPTCHA_SPECIFIC_CLASSES,
+            watched_ids=CAPTCHA_SPECIFIC_IDS,
+            task_queue=ui_interaction_queue,
+            task_enum=UiToShow.CAPTCHA,
+        )
+        yield driver, tasks_queue
 
-        # Add tasks to the queue
+        run_all_tasks(
+            tasks_queue,
+            priority_queue=ui_interaction_queue,
+            pause_between_tasks=DEBUG_DELAY if DEBUG else 0,
+        )
+    finally:
+        stop_observer.set()
+        driver.quit()
+
+
+def run_demo() -> None:
+    with browser_session() as (driver, tasks_queue):
+        driver.get(DEMO_WEBSITE)
         tasks_queue.add_task(WebpageInteraction.CLICK_COOKIE_BTN, driver)
         tasks_queue.add_task(
             WebpageInteraction.TYPE_AND_CLICK_IN_SEARCH,
@@ -46,26 +81,49 @@ def run_test() -> None:
         tasks_queue.add_task(WebpageInteraction.CLICK_ON_FIRST_RESULT, driver)
         tasks_queue.add_task(CommonTasks.SLEEP, 10)
 
-        # Detect CAPTCHAs in the background and queue a UI prompt when one shows up
-        start_dom_observer_thread(
-            driver,
-            stop_event=stop_observer,
-            watched_classes=CAPTCHA_SPECIFIC_CLASSES,
-            watched_ids=CAPTCHA_SPECIFIC_IDS,
-            task_queue=ui_interaction_queue,
-            task_enum=UiToShow.CAPTCHA,
-        )
 
-        # UI prompts (CAPTCHA) always run before the next page interaction
-        run_all_tasks(
-            tasks_queue,
-            priority_queue=ui_interaction_queue,
-            pause_between_tasks=DEBUG_DELAY if DEBUG else 0,
-        )
+def run_follow(platforms) -> None:
+    with browser_session() as (driver, tasks_queue):
+        for platform in platforms:
+            tasks_queue.add_task(CommonTasks.AUTO_FOLLOW, driver, platform)
 
+
+def run_login(platforms) -> None:
+    """Opens each login page and waits: the session is saved in the browser profile."""
+    driver = get_webdriver()
+    try:
+        for platform in platforms:
+            driver.get(PLATFORMS[platform].login_url)
+            input(f"Log in to {platform} in the browser, then press Enter...")
     finally:
-        stop_observer.set()
         driver.quit()
+
+
+def show_stats() -> None:
+    with FollowedStore(AUTO_FOLLOW_DB_PATH) as store:
+        stats = store.stats()
+    if not stats:
+        print("No account handled yet.")
+    for platform, counts in sorted(stats.items()):
+        print(f"{platform:<12} " + ", ".join(f"{s}: {n}" for s, n in sorted(counts.items())))
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    commands = parser.add_subparsers(dest="command", required=True)
+    for name in ("login", "follow"):
+        command = commands.add_parser(name)
+        command.add_argument(
+            "platforms", nargs="*", metavar="platform", help=", ".join(PLATFORMS)
+        )
+    commands.add_parser("stats")
+    commands.add_parser("demo")
+
+    args = parser.parse_args()
+    unknown = set(getattr(args, "platforms", ())) - set(PLATFORMS)
+    if unknown:
+        parser.error(f"unknown platform(s): {', '.join(sorted(unknown))} (choose from {', '.join(PLATFORMS)})")
+    return args
 
 
 if __name__ == "__main__":
@@ -76,4 +134,13 @@ if __name__ == "__main__":
     # Selenium/urllib3 are very chatty at DEBUG
     logging.getLogger("selenium").setLevel(logging.INFO)
     logging.getLogger("urllib3").setLevel(logging.INFO)
-    run_test()
+
+    args = parse_args()
+    if args.command == "demo":
+        run_demo()
+    elif args.command == "stats":
+        show_stats()
+    elif args.command == "login":
+        run_login(args.platforms or list(PLATFORMS))
+    else:
+        run_follow(args.platforms or enabled_platforms())

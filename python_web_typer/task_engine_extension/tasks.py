@@ -248,7 +248,7 @@ def scroll_to_bottom(
             return
         last_position = position
 
-    logger.info("scroll_to_bottom stopped after max_rounds=%d", max_rounds)
+    logger.debug("scroll_to_bottom stopped after max_rounds=%d", max_rounds)
 
 
 #
