@@ -12,6 +12,7 @@ from selenium.webdriver.remote.webdriver import WebDriver
 from ..task_engine_extension.tasks import scroll_to_bottom
 from .dom import collect_profile_links, wait_for
 from .engine import FOLLOW_LABELS, PlatformSpec
+from .like import LikeSpec
 from .unfollow import UnfollowSpec
 
 __all__ = ["PLATFORMS"]
@@ -20,6 +21,9 @@ logger = logging.getLogger(__name__)
 
 # Trailing part of a profile URL: optional slash, optional query/fragment, nothing else
 _END = r"/?(?:[?&#].*)?$"
+
+# Like button labels (normalised, see dom.py)
+_LIKE_LABELS = ("like", "j'aime", "vind ik leuk", "gefällt mir", "me gusta")
 
 # Unfollow button labels (normalised, see dom.py)
 _FOLLOWING_LABELS = (
@@ -138,6 +142,14 @@ def _instagram_listing_pages(driver: WebDriver, spec: PlatformSpec, settings: di
 
 INSTAGRAM = PlatformSpec(
     name="instagram",
+    # Hashtag pages -> posts / reels; big heart only (comments have small ones)
+    like=LikeSpec(
+        search_url="https://www.instagram.com/explore/tags/{tag}/",
+        post_url_re=r"^https://www\.instagram\.com/(?:[a-z0-9._]+/)?(?:p|reel)/([a-z0-9_-]+)" + _END,
+        labels=_LIKE_LABELS,
+        min_button_size=20,
+        scope_css="main",
+    ),
     profile_url="https://www.instagram.com/{id}/",
     # Following dialog: "Following" -> "Unfollow" (confirmation)
     unfollow=UnfollowSpec(
@@ -163,6 +175,21 @@ INSTAGRAM = PlatformSpec(
 
 SOUNDCLOUD = PlatformSpec(
     name="soundcloud",
+    # Track search -> track pages (user/track, not user/sets, user/likes...)
+    like=LikeSpec(
+        search_url="https://soundcloud.com/search/sounds?q={query}",
+        post_url_re=(
+            r"^https://soundcloud\.com/("
+            r"(?!(?:search|discover|you|stream|charts|upload|pages|settings|messages|notifications|tags|stations)/)"
+            r"[a-z0-9_-]+/"
+            r"(?!(?:sets|likes|followers|following|tracks|albums|reposts|popular-tracks|comments|spotlight)(?:[/?#]|$))"
+            r"[a-z0-9_-]+)" + _END
+        ),
+        labels=_LIKE_LABELS,
+        button_css="button.sc-button-like",
+        scope_css=".listenEngagement, .l-listen-engagement",
+        results_scope_css="main, #content",
+    ),
     profile_url="https://soundcloud.com/{id}",
     unfollow=UnfollowSpec(
         following_url="https://soundcloud.com/{me}/following",
@@ -200,6 +227,14 @@ MIXCLOUD = PlatformSpec(
 
 YOUTUBE = PlatformSpec(
     name="youtube",
+    # Video search -> watch pages; the like button exposes aria-pressed
+    like=LikeSpec(
+        search_url="https://www.youtube.com/results?search_query={query}&sp=EgIQAQ%253D%253D",
+        post_url_re=r"^https://www\.youtube\.com/watch\?v=([a-z0-9_-]{11})(?:[&#].*)?$",
+        button_css="like-button-view-model button, #segmented-like-button button",
+        scope_css="ytd-watch-metadata, #above-the-fold",
+        results_scope_css="ytd-search",
+    ),
     profile_url="https://www.youtube.com/{id}",
     # Subscriptions manager: "Subscribed" -> menu "Unsubscribe" -> dialog "Unsubscribe"
     unfollow=UnfollowSpec(

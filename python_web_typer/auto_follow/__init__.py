@@ -1,10 +1,10 @@
 """
 Auto-follow accounts on social platforms, never following the same account twice,
-and unfollow every account except a keep list.
+unfollow every account except a keep list, and like posts.
 
 Log in once per platform in the automation browser profile (python main.py login),
-then run python main.py follow / unfollow. Settings live in config.AUTO_FOLLOW and
-config.AUTO_UNFOLLOW.
+then run python main.py follow / unfollow / like. Settings live in
+config.AUTO_FOLLOW, config.AUTO_UNFOLLOW and config.AUTO_LIKE.
 """
 
 import logging
@@ -16,11 +16,14 @@ from ..config import (
     AUTO_FOLLOW,
     AUTO_FOLLOW_DB_PATH,
     AUTO_FOLLOW_DEFAULTS,
+    AUTO_LIKE,
+    AUTO_LIKE_DEFAULTS,
     AUTO_UNFOLLOW,
     AUTO_UNFOLLOW_DEFAULTS,
 )
 from ..humanize import draw
 from .engine import FollowSession, run_listing, run_search
+from .like import LIKED, LikeSession, likes_store_key, run_like
 from .platforms import PLATFORMS
 from .store import FOLLOWED, UNFOLLOWED, FollowedStore
 from .unfollow import UnfollowSession, normalize_keep_list, run_unfollow
@@ -34,6 +37,9 @@ __all__ = [
     "unfollow_settings",
     "keep_list",
     "auto_unfollow",
+    "like_settings",
+    "like_platforms",
+    "auto_like",
 ]
 
 logger = logging.getLogger(__name__)
@@ -77,8 +83,8 @@ def auto_follow(
         logger.info("[%s] Following up to %d accounts", platform, quota)
         session = FollowSession(driver, store, spec, quota)
         (run_listing if spec.listing_pages else run_search)(session, settings)
-        logger.info("[%s] Done: %d followed", platform, session.followed)
-        return session.followed
+        logger.info("[%s] Done: %d followed", platform, session.count)
+        return session.count
     finally:
         if own_store:
             store.close()
@@ -135,10 +141,54 @@ def auto_unfollow(
             quota,
             len(keep),
         )
-        session = UnfollowSession(driver, store, spec, quota, dry_run)
+        session = UnfollowSession(driver, store, spec, quota, dry_run=dry_run)
         run_unfollow(session, settings, keep)
-        logger.info("[%s] Done: %d unfollowed", platform, session.unfollowed)
-        return session.unfollowed
+        logger.info("[%s] Done: %d unfollowed", platform, session.count)
+        return session.count
+    finally:
+        if own_store:
+            store.close()
+
+
+def like_settings(platform: str) -> Dict:
+    return {**AUTO_LIKE_DEFAULTS, **AUTO_LIKE.get(platform, {})}
+
+
+def like_platforms() -> List[str]:
+    return [name for name, spec in PLATFORMS.items() if spec.like and name in AUTO_LIKE]
+
+
+def auto_like(
+    driver: WebDriver, platform: str, store: Optional[FollowedStore] = None
+) -> int:
+    """
+    Likes up to `max_likes` posts found with the search terms of
+    config.AUTO_LIKE, within `max_likes_per_24h`. Returns the number of likes.
+    """
+    spec = PLATFORMS[platform]
+    if spec.like is None:
+        raise ValueError(f"Liking isn't supported on {platform}")
+    settings = like_settings(platform)
+    own_store = store is None
+    store = store or FollowedStore(AUTO_FOLLOW_DB_PATH)
+
+    try:
+        quota = _quota(
+            store,
+            likes_store_key(platform),
+            LIKED,
+            settings["max_likes"],
+            settings["max_likes_per_24h"],
+        )
+        if quota <= 0:
+            logger.info("[%s] 24h like cap reached, skipping", platform)
+            return 0
+
+        logger.info("[%s] Liking up to %d posts", platform, quota)
+        session = LikeSession(driver, store, spec, quota)
+        run_like(session, settings)
+        logger.info("[%s] Done: %d liked", platform, session.count)
+        return session.count
     finally:
         if own_store:
             store.close()

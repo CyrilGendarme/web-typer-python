@@ -114,3 +114,27 @@ AUTO_UNFOLLOW = {
     "kick": {},
     "twitch": {},
 }
+
+# ---------------------------
+# Auto-like: posts found by search requests, never liked twice
+# ---------------------------
+
+# Seconds spent on a post before liking it (watching / listening / reading)
+AUTO_LIKE_VIEW_DELAY = Humanized(10.0, 30.0, min=3.0)
+# Pause (seconds) after each like
+AUTO_LIKE_DELAY = Humanized(10.0, 25.0, min=4.0)
+# Posts opened per search request
+AUTO_LIKE_POSTS_PER_TERM = Humanized(8, 12, min=2)
+
+AUTO_LIKE_DEFAULTS = {
+    "max_likes": Humanized(15, 25, min=1),  # posts to like per run
+    "max_likes_per_24h": Humanized(60, 80),  # cap over a rolling 24h window
+    "search_terms": AUTO_FOLLOW_SEARCH_TERMS,  # Instagram: used as hashtags
+    "search_scrolls": Humanized(2, 4, min=1),  # result pages loaded per search
+}
+
+AUTO_LIKE = {
+    "instagram": {"max_likes_per_24h": Humanized(50, 70)},
+    "youtube": {},
+    "soundcloud": {},
+}

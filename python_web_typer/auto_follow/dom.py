@@ -20,7 +20,9 @@ __all__ = [
     "collect_profile_links",
     "find_follow_buttons_with_profiles",
     "find_follow_button",
+    "find_like_button",
     "has_follow_label",
+    "wait_until_liked",
     "read_text",
     "scroll_scope",
     "wait_for",
@@ -94,6 +96,37 @@ const [el, labels] = arguments;
 return el.isConnected && isFollowButton(el, new Set(labels));
 """
 
+# Like buttons are often icon-only: labels may sit on an inner <svg aria-label>
+# or <title>. aria-pressed, when present, is the reliable state.
+_LIKE_PRELUDE = _PRELUDE + r"""
+const labelsOf = el => [
+    el.getAttribute('aria-label'), el.getAttribute('title'), el.innerText,
+    ...[...el.querySelectorAll('svg[aria-label], svg title')].map(s => s.getAttribute('aria-label') || s.textContent),
+].map(norm);
+const isUnliked = (el, wanted) => el.hasAttribute('aria-pressed')
+    ? el.getAttribute('aria-pressed') === 'false'
+    : labelsOf(el).some(l => wanted.has(l));
+"""
+
+# First visible, not-yet-liked like button at least `minSize` px large
+# (skips the small hearts of comments)
+_FIND_LIKE_BUTTON_JS = _LIKE_PRELUDE + r"""
+const [scopeCss, labels, buttonCss, minSize] = arguments;
+const wanted = new Set(labels);
+for (const el of resolveScope(scopeCss).querySelectorAll(buttonCss || 'button, [role="button"]')) {
+    if (!el.offsetParent) continue;
+    const rect = el.getBoundingClientRect();
+    if (Math.max(rect.width, rect.height) < minSize) continue;
+    if (isUnliked(el, wanted)) return el;
+}
+return null;
+"""
+
+_IS_UNLIKED_JS = _LIKE_PRELUDE + r"""
+const [el, labels] = arguments;
+return el.isConnected && isUnliked(el, new Set(labels));
+"""
+
 _READ_TEXT_JS = r"""
 const [css, maxLength] = arguments;
 const nodes = css ? [...document.querySelectorAll(css)] : [];
@@ -160,6 +193,32 @@ def has_follow_label(driver: WebDriver, element: WebElement, labels: Sequence[st
         return driver.execute_script(_HAS_FOLLOW_LABEL_JS, element, list(labels))
     except StaleElementReferenceException:
         return False
+
+
+def find_like_button(
+    driver: WebDriver,
+    labels: Sequence[str],
+    scope_css: Optional[str] = None,
+    button_css: Optional[str] = None,
+    min_size: int = 0,
+) -> Optional[WebElement]:
+    return driver.execute_script(
+        _FIND_LIKE_BUTTON_JS, scope_css, list(labels), button_css, min_size
+    )
+
+
+def wait_until_liked(
+    driver: WebDriver, element: WebElement, labels: Sequence[str], timeout: float = 5
+) -> bool:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            if not driver.execute_script(_IS_UNLIKED_JS, element, list(labels)):
+                return True
+        except StaleElementReferenceException:
+            return True
+        time.sleep(0.3)
+    return False
 
 
 def read_text(driver: WebDriver, css: Optional[str] = None, max_length: int = 5000) -> str:

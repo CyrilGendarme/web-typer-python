@@ -1,10 +1,10 @@
-"""Follow strategies shared by all platforms: pacing, quotas, verification."""
+"""Platform definition and follow strategies (search mode, listing mode)."""
 
 import logging
 import random
 import re
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Callable, FrozenSet, Iterator, Optional, Tuple
 from urllib.parse import quote_plus
 
@@ -31,10 +31,19 @@ from .dom import (
     wait_for,
     wait_until_label_changes,
 )
-from .store import FOLLOWED, SKIPPED, FollowedStore
+from .like import LikeSpec
+from .session import ActionSession
+from .store import FOLLOWED, SKIPPED
 from .unfollow import UnfollowSpec
 
-__all__ = ["FOLLOW_LABELS", "PlatformSpec", "FollowSession", "run_search", "run_listing"]
+__all__ = [
+    "FOLLOW_LABELS",
+    "PlatformSpec",
+    "FollowSession",
+    "browse_pause",
+    "run_search",
+    "run_listing",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -51,10 +60,6 @@ FOLLOW_LABELS = (
     "folgen",
     "abonnieren",
 )
-
-# Follow clicks that didn't change the button, in a row, before giving up on a
-# platform (usually: logged out, rate limited or action blocked)
-_MAX_CONSECUTIVE_FAILURES = 3
 
 
 @dataclass(frozen=True)
@@ -83,7 +88,9 @@ class PlatformSpec:
     listing_pages: Optional[Callable[..., Iterator[str]]] = None
     listing_scope_css: Optional[str] = None
     # How to undo follows (unfollow.UnfollowSpec)
-    unfollow: Optional["UnfollowSpec"] = None
+    unfollow: Optional[UnfollowSpec] = None
+    # How to find and like posts (like.LikeSpec)
+    like: Optional[LikeSpec] = None
 
     def account_id(self, url: str) -> Optional[str]:
         match = re.match(self.profile_url_re, url, re.IGNORECASE)
@@ -93,22 +100,17 @@ class PlatformSpec:
         return None if account_id in self.reserved_ids else account_id
 
 
-@dataclass
-class FollowSession:
-    driver: WebDriver
-    store: FollowedStore
-    spec: PlatformSpec
-    quota: int
-    followed: int = 0
-    aborted: bool = False
-    _failures: int = field(default=0, repr=False)
+def browse_pause() -> None:
+    time.sleep(draw(AUTO_FOLLOW_BROWSE_DELAY))
 
-    @property
-    def done(self) -> bool:
-        return self.aborted or self.followed >= self.quota
+
+class FollowSession(ActionSession):
+    verb = "follow"
+    past_tense = "Followed"
+    delay = AUTO_FOLLOW_FOLLOW_DELAY
 
     def browse_pause(self) -> None:
-        time.sleep(draw(AUTO_FOLLOW_BROWSE_DELAY))
+        browse_pause()
 
     def click_follow(
         self,
@@ -123,32 +125,14 @@ class FollowSession:
             simulate_click(self.driver, button, wait_time=5)
             and wait_until_label_changes(self.driver, button, labels)
         ):
-            self._failures += 1
-            logger.warning("[%s] Follow of %s not confirmed", self.spec.name, account_id)
-            if self._failures >= _MAX_CONSECUTIVE_FAILURES:
-                self.aborted = True
-                logger.error(
-                    "[%s] %d follows in a row failed, stopping. Logged in? "
-                    "(python main.py login %s) Rate limited?",
-                    self.spec.name,
-                    self._failures,
-                    self.spec.name,
-                )
+            self.failed(account_id)
             return False
 
-        self._failures = 0
         self.store.mark(self.spec.name, account_id, FOLLOWED, url, follower_count)
-        self.followed += 1
-        logger.info(
-            "[%s] Followed %s (%d/%d)%s",
-            self.spec.name,
+        self.succeeded(
             account_id,
-            self.followed,
-            self.quota,
             f", {follower_count} followers" if follower_count is not None else "",
         )
-        if not self.done:
-            time.sleep(draw(AUTO_FOLLOW_FOLLOW_DELAY))
         return True
 
 

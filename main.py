@@ -4,6 +4,7 @@ Usage:
     python main.py follow [platform ...]   auto-follow (default: enabled platforms)
     python main.py unfollow platform ... [--dry-run] [--yes]
                                            unfollow everyone except the keep list
+    python main.py like [platform ...]     like posts (instagram, youtube, soundcloud)
     python main.py stats                   accounts followed/skipped per platform
     python main.py demo                    Google search demo
 """
@@ -18,6 +19,7 @@ from python_web_typer.auto_follow import (
     FollowedStore,
     enabled_platforms,
     keep_list,
+    like_platforms,
 )
 from python_web_typer.config import AUTO_FOLLOW_DB_PATH, DEBUG, DEBUG_DELAY, LOG_LEVEL
 from python_web_typer.task_engine_extension.enums_and_mappings import (
@@ -114,6 +116,12 @@ def run_unfollow(platforms, dry_run: bool) -> None:
             tasks_queue.add_task(CommonTasks.AUTO_UNFOLLOW, driver, platform, dry_run)
 
 
+def run_like(platforms) -> None:
+    with browser_session() as (driver, tasks_queue):
+        for platform in platforms:
+            tasks_queue.add_task(CommonTasks.AUTO_LIKE, driver, platform)
+
+
 def run_login(platforms) -> None:
     """Opens each login page and waits: the session is saved in the browser profile."""
     driver = get_webdriver()
@@ -137,7 +145,7 @@ def show_stats() -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest="command", required=True)
-    for name in ("login", "follow"):
+    for name in ("login", "follow", "like"):
         command = commands.add_parser(name)
         command.add_argument(
             "platforms", nargs="*", metavar="platform", help=", ".join(PLATFORMS)
@@ -150,9 +158,10 @@ def parse_args() -> argparse.Namespace:
     commands.add_parser("demo")
 
     args = parser.parse_args()
-    unknown = set(getattr(args, "platforms", ())) - set(PLATFORMS)
+    allowed = like_platforms() if args.command == "like" else list(PLATFORMS)
+    unknown = set(getattr(args, "platforms", ())) - set(allowed)
     if unknown:
-        parser.error(f"unknown platform(s): {', '.join(sorted(unknown))} (choose from {', '.join(PLATFORMS)})")
+        parser.error(f"unsupported platform(s): {', '.join(sorted(unknown))} (choose from {', '.join(allowed)})")
     return args
 
 
@@ -172,6 +181,8 @@ if __name__ == "__main__":
         show_stats()
     elif args.command == "login":
         run_login(args.platforms or list(PLATFORMS))
+    elif args.command == "like":
+        run_like(args.platforms or like_platforms())
     elif args.command == "unfollow":
         try:
             confirmed = confirm_unfollow(args.platforms, args.dry_run, args.yes)

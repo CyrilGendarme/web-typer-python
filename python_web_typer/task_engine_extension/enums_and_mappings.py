@@ -1,6 +1,6 @@
 from enum import Enum, auto
 
-from ..auto_follow import auto_follow, auto_unfollow
+from ..auto_follow import auto_follow, auto_like, auto_unfollow
 from .example_tasks import (
     click_cookie_btn,
     click_on_first_result,
@@ -43,6 +43,7 @@ class CommonTasks(Enum):
     SCROLL_TO_BOTTOM = auto()
     AUTO_FOLLOW = auto()  # args: driver, platform name (see auto_follow.PLATFORMS)
     AUTO_UNFOLLOW = auto()  # args: driver, platform name, dry_run
+    AUTO_LIKE = auto()  # args: driver, platform name
     NO_OP = auto()  # Represents no operation
 
 
@@ -72,6 +73,7 @@ common_func_map = {
     CommonTasks.SCROLL_TO_BOTTOM: scroll_to_bottom,
     CommonTasks.AUTO_FOLLOW: auto_follow,
     CommonTasks.AUTO_UNFOLLOW: auto_unfollow,
+    CommonTasks.AUTO_LIKE: auto_like,
     # A callable (not None) so the queue can execute and dequeue it
     CommonTasks.NO_OP: _no_op,
 }

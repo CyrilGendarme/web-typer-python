@@ -2,10 +2,9 @@
 
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Iterable, Optional, Set, Tuple
 
-from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
 
 from ..config import AUTO_FOLLOW_IDLE_SCROLLS, AUTO_UNFOLLOW_DELAY, SCROLL_PAUSE
@@ -20,15 +19,12 @@ from .dom import (
     wait_for,
     wait_until_label_changes,
 )
-from .store import UNFOLLOWED, FollowedStore
+from .session import ActionSession
+from .store import UNFOLLOWED
 
 __all__ = ["UnfollowSpec", "UnfollowSession", "normalize_keep_list", "run_unfollow"]
 
 logger = logging.getLogger(__name__)
-
-# Unfollow attempts that failed in a row before giving up on a platform
-_MAX_CONSECUTIVE_FAILURES = 3
-
 
 @dataclass(frozen=True)
 class UnfollowSpec:
@@ -78,20 +74,10 @@ def _resolve_account(spec, entry: str) -> Optional[str]:
     return None
 
 
-@dataclass
-class UnfollowSession:
-    driver: WebDriver
-    store: FollowedStore
-    spec: object  # PlatformSpec
-    quota: int
-    dry_run: bool = False
-    unfollowed: int = 0
-    aborted: bool = False
-    _failures: int = field(default=0, repr=False)
-
-    @property
-    def done(self) -> bool:
-        return self.aborted or self.unfollowed >= self.quota
+class UnfollowSession(ActionSession):
+    verb = "unfollow"
+    past_tense = "Unfollowed"
+    delay = AUTO_UNFOLLOW_DELAY
 
     def _click_steps(self, first_button: WebElement) -> bool:
         steps = self.spec.unfollow.steps
@@ -112,27 +98,17 @@ class UnfollowSession:
         # Done once the account's button no longer reads "Following"
         return wait_until_label_changes(self.driver, first_button, steps[0])
 
-    def unfollow(self, button: WebElement, account_id: str, url: str) -> bool:
-        name = self.spec.name
+    def unfollow(self, button: Optional[WebElement], account_id: str, url: str) -> bool:
         if self.dry_run:
-            self.unfollowed += 1
-            logger.info("[%s] [dry-run] Would unfollow %s (%d/%d)", name, account_id, self.unfollowed, self.quota)
+            self.succeeded(account_id)
             return True
 
         if not self._click_steps(button):
-            self._failures += 1
-            logger.warning("[%s] Unfollow of %s not confirmed", name, account_id)
-            if self._failures >= _MAX_CONSECUTIVE_FAILURES:
-                self.aborted = True
-                logger.error("[%s] %d unfollows in a row failed, stopping", name, self._failures)
+            self.failed(account_id)
             return False
 
-        self._failures = 0
-        self.store.mark(name, account_id, UNFOLLOWED, url)
-        self.unfollowed += 1
-        logger.info("[%s] Unfollowed %s (%d/%d)", name, account_id, self.unfollowed, self.quota)
-        if not self.done:
-            time.sleep(draw(AUTO_UNFOLLOW_DELAY))
+        self.store.mark(self.spec.name, account_id, UNFOLLOWED, url)
+        self.succeeded(account_id)
         return True
 
 
