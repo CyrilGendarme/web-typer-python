@@ -2,6 +2,8 @@
 Usage:
     python main.py login [platform ...]    log in once, kept in the browser profile
     python main.py follow [platform ...]   auto-follow (default: enabled platforms)
+    python main.py unfollow platform ... [--dry-run] [--yes]
+                                           unfollow everyone except the keep list
     python main.py stats                   accounts followed/skipped per platform
     python main.py demo                    Google search demo
 """
@@ -11,7 +13,12 @@ import logging
 import threading
 from contextlib import contextmanager
 
-from python_web_typer.auto_follow import PLATFORMS, FollowedStore, enabled_platforms
+from python_web_typer.auto_follow import (
+    PLATFORMS,
+    FollowedStore,
+    enabled_platforms,
+    keep_list,
+)
 from python_web_typer.config import AUTO_FOLLOW_DB_PATH, DEBUG, DEBUG_DELAY, LOG_LEVEL
 from python_web_typer.task_engine_extension.enums_and_mappings import (
     CommonTasks,
@@ -88,6 +95,25 @@ def run_follow(platforms) -> None:
             tasks_queue.add_task(CommonTasks.AUTO_FOLLOW, driver, platform)
 
 
+def confirm_unfollow(platforms, dry_run: bool, assume_yes: bool) -> bool:
+    """Validates the keep lists, then asks for confirmation (unfollows are hard to undo)."""
+    for platform in platforms:
+        keep = keep_list(platform)  # raises on an invalid entry
+        warning = "  <- EMPTY: every account will be unfollowed" if not keep else ""
+        print(f"{platform:<12} keeping {len(keep)} account(s){warning}")
+        if platform == "facebook":
+            print(f"{'':<12} Facebook: this REMOVES FRIENDS")
+    if dry_run or assume_yes:
+        return True
+    return input("Type 'unfollow' to proceed: ").strip().lower() == "unfollow"
+
+
+def run_unfollow(platforms, dry_run: bool) -> None:
+    with browser_session() as (driver, tasks_queue):
+        for platform in platforms:
+            tasks_queue.add_task(CommonTasks.AUTO_UNFOLLOW, driver, platform, dry_run)
+
+
 def run_login(platforms) -> None:
     """Opens each login page and waits: the session is saved in the browser profile."""
     driver = get_webdriver()
@@ -116,6 +142,10 @@ def parse_args() -> argparse.Namespace:
         command.add_argument(
             "platforms", nargs="*", metavar="platform", help=", ".join(PLATFORMS)
         )
+    unfollow = commands.add_parser("unfollow")
+    unfollow.add_argument("platforms", nargs="+", metavar="platform", help=", ".join(PLATFORMS))
+    unfollow.add_argument("--dry-run", action="store_true", help="only list who would be unfollowed")
+    unfollow.add_argument("--yes", action="store_true", help="skip the confirmation prompt")
     commands.add_parser("stats")
     commands.add_parser("demo")
 
@@ -142,5 +172,13 @@ if __name__ == "__main__":
         show_stats()
     elif args.command == "login":
         run_login(args.platforms or list(PLATFORMS))
+    elif args.command == "unfollow":
+        try:
+            confirmed = confirm_unfollow(args.platforms, args.dry_run, args.yes)
+        except ValueError as e:
+            raise SystemExit(f"Invalid config.AUTO_UNFOLLOW: {e}")
+        if not confirmed:
+            raise SystemExit("Aborted, nothing unfollowed.")
+        run_unfollow(args.platforms, args.dry_run)
     else:
         run_follow(args.platforms or enabled_platforms())

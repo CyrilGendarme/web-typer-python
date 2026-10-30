@@ -13,12 +13,13 @@ from typing import Optional
 
 from ..config import AUTO_FOLLOW_DB_PATH
 
-__all__ = ["FOLLOWED", "SKIPPED", "FollowedStore"]
+__all__ = ["FOLLOWED", "SKIPPED", "UNFOLLOWED", "FollowedStore"]
 
 logger = logging.getLogger(__name__)
 
 FOLLOWED = "followed"
 SKIPPED = "skipped"  # e.g. too many followers, re-evaluated if max_followers is raised
+UNFOLLOWED = "unfollowed"  # never followed again
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS accounts (
@@ -97,14 +98,14 @@ class FollowedStore:
                 (platform, account_id, status, url, follower_count, _now().isoformat()),
             )
 
-    def count_followed_since(self, platform: str, since: datetime) -> int:
+    def count_since(self, platform: str, status: str, since: datetime) -> int:
         return self._conn.execute(
             "SELECT COUNT(*) FROM accounts WHERE platform = ? AND status = ? AND updated_at >= ?",
-            (platform, FOLLOWED, since.isoformat()),
+            (platform, status, since.isoformat()),
         ).fetchone()[0]
 
-    def count_followed_last_24h(self, platform: str) -> int:
-        return self.count_followed_since(platform, _now() - timedelta(hours=24))
+    def count_last_24h(self, platform: str, status: str = FOLLOWED) -> int:
+        return self.count_since(platform, status, _now() - timedelta(hours=24))
 
     def stats(self) -> dict:
         """{platform: {status: count}}"""

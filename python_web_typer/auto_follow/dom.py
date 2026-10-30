@@ -78,11 +78,13 @@ for (const btn of scope.querySelectorAll('button, [role="button"]')) {
 return out;
 """
 
+# Also matches menu entries ("Unfollow" / "Unfriend" in a "..." menu)
 _FIND_FOLLOW_BUTTON_JS = _PRELUDE + r"""
-const [scopeCss, labels] = arguments;
+const [scopeCss, labels, exclude] = arguments;
 const wanted = new Set(labels);
-for (const btn of resolveScope(scopeCss).querySelectorAll('button, [role="button"]')) {
-    if (btn.offsetParent && isFollowButton(btn, wanted)) return btn;
+const selector = 'button, [role="button"], [role="menuitem"], [role="option"]';
+for (const btn of resolveScope(scopeCss).querySelectorAll(selector)) {
+    if (btn !== exclude && btn.offsetParent && isFollowButton(btn, wanted)) return btn;
 }
 return null;
 """
@@ -143,9 +145,13 @@ def find_follow_buttons_with_profiles(
 
 
 def find_follow_button(
-    driver: WebDriver, labels: Sequence[str], scope_css: Optional[str] = None
+    driver: WebDriver,
+    labels: Sequence[str],
+    scope_css: Optional[str] = None,
+    exclude: Optional[WebElement] = None,
 ) -> Optional[WebElement]:
-    return driver.execute_script(_FIND_FOLLOW_BUTTON_JS, scope_css, list(labels))
+    """First visible button or menu entry labelled with one of `labels`, `exclude` aside."""
+    return driver.execute_script(_FIND_FOLLOW_BUTTON_JS, scope_css, list(labels), exclude)
 
 
 def has_follow_label(driver: WebDriver, element: WebElement, labels: Sequence[str]) -> bool:

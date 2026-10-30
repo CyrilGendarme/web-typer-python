@@ -32,6 +32,7 @@ from .dom import (
     wait_until_label_changes,
 )
 from .store import FOLLOWED, SKIPPED, FollowedStore
+from .unfollow import UnfollowSpec
 
 __all__ = ["FOLLOW_LABELS", "PlatformSpec", "FollowSession", "run_search", "run_listing"]
 
@@ -70,6 +71,8 @@ class PlatformSpec:
     login_url: str
     # Matches a profile URL, group 1 = account id (must also be a valid JS regex)
     profile_url_re: str
+    # Profile URL from an account id ({id}), inverse of profile_url_re
+    profile_url: str
     reserved_ids: FrozenSet[str] = frozenset()
     follow_labels: Tuple[str, ...] = FOLLOW_LABELS
     # Search mode
@@ -79,6 +82,8 @@ class PlatformSpec:
     # Listing mode: (driver, spec, settings) -> URLs of pages listing accounts
     listing_pages: Optional[Callable[..., Iterator[str]]] = None
     listing_scope_css: Optional[str] = None
+    # How to undo follows (unfollow.UnfollowSpec)
+    unfollow: Optional["UnfollowSpec"] = None
 
     def account_id(self, url: str) -> Optional[str]:
         match = re.match(self.profile_url_re, url, re.IGNORECASE)

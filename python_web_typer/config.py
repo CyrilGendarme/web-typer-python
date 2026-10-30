@@ -85,3 +85,32 @@ AUTO_FOLLOW = {
     "kick": {"max_followers": Humanized(1000, 1500)},
     "twitch": {"max_followers": Humanized(1000, 1500)},
 }
+
+# ---------------------------
+# Auto-unfollow: unfollows every followed account except the "keep" list
+# ---------------------------
+
+# Pause (seconds) after each unfollow
+AUTO_UNFOLLOW_DELAY = Humanized(12.0, 30.0, min=4.0)
+
+AUTO_UNFOLLOW_DEFAULTS = {
+    "max_unfollows": Humanized(15, 25, min=1),  # accounts to unfollow per run
+    "max_unfollows_per_24h": Humanized(50, 70),  # cap over a rolling 24h window
+    # Accounts never unfollowed: usernames ("@name" or "name") or profile URLs.
+    # An entry that can't be recognised aborts the platform (nothing unfollowed).
+    "keep": [],
+    # Your own username, required where the following list URL contains it
+    "own_account": "",
+}
+
+AUTO_UNFOLLOW = {
+    # Facebook: REMOVES FRIENDS (only undone by a new friend request)
+    "facebook": {"max_unfollows": Humanized(5, 8, min=1), "max_unfollows_per_24h": Humanized(15, 20)},
+    "instagram": {"own_account": ""},  # required
+    "soundcloud": {"own_account": ""},  # required (profile URL name)
+    "mixcloud": {"own_account": ""},  # required (profile URL name)
+    "youtube": {},
+    "rumble": {},
+    "kick": {},
+    "twitch": {},
+}
