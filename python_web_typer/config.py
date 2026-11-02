@@ -22,6 +22,10 @@ MUTATION_OBSERVER_MAX_CONSECUTIVE_ERRORS = 5
 
 DEFAULT_ELEMENT_WAIT_TIME = 10
 
+# Elements revealing a CAPTCHA (reCAPTCHA, hCaptcha, Cloudflare Turnstile / challenge)
+CAPTCHA_SPECIFIC_CLASSES = ["g-recaptcha", "h-captcha", "cf-turnstile"]
+CAPTCHA_SPECIFIC_IDS = ["captcha-form", "recaptcha", "challenge-form"]
+
 # Seconds between two typed characters
 TYPING_DELAY = Humanized(0.08, 0.2, min=0.03)
 # Seconds waited after each scroll (lets lazy content load, reading time)
@@ -207,3 +211,15 @@ AUTO_OWN_POSTS = {
     "youtube": {},
     "soundcloud": {},
 }
+
+# ---------------------------
+# User overrides (edited and saved by the GUI), applied on top of the above
+# ---------------------------
+
+USER_SETTINGS_PATH = os.path.join(
+    os.path.expanduser("~"), ".python_web_typer", "settings.json"
+)
+
+from .user_settings import load_user_settings  # noqa: E402
+
+load_user_settings(USER_SETTINGS_PATH, globals())

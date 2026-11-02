@@ -15,6 +15,7 @@ from typing import Callable, Deque, Dict, Iterable, Optional, Sequence
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.remote.webdriver import WebDriver
 
+from ..cancellation import cancellable_sleep
 from ..humanize import draw
 from ..webpage_interactions.simulate_click import simulate_click
 from ..webpage_interactions.simulate_typing import simulate_typing
@@ -154,7 +155,7 @@ def run_chat(driver: WebDriver, specs: Iterable, settings_of: Callable[[str], di
     active = [name for name, session in sessions.items() if not session.done]
     while active:
         name = min(active, key=next_at.__getitem__)
-        time.sleep(max(0.0, next_at[name] - time.monotonic()))
+        cancellable_sleep(max(0.0, next_at[name] - time.monotonic()))
 
         session, settings = sessions[name], settings_of(name)
         driver.switch_to.window(windows[name])

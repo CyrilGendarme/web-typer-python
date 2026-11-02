@@ -9,6 +9,7 @@ Usage:
     python main.py own-posts [platform ...]
                                            like / comment your own latest posts
     python main.py stats                   accounts followed/skipped per platform
+    python main.py gui                     control panel (settings, actions, logs)
     python main.py demo                    Google search demo
 """
 
@@ -28,7 +29,14 @@ from python_web_typer.engagement import (
     own_account,
     own_posts_platforms,
 )
-from python_web_typer.config import AUTO_FOLLOW_DB_PATH, DEBUG, DEBUG_DELAY, LOG_LEVEL
+from python_web_typer.config import (
+    AUTO_FOLLOW_DB_PATH,
+    CAPTCHA_SPECIFIC_CLASSES,
+    CAPTCHA_SPECIFIC_IDS,
+    DEBUG,
+    DEBUG_DELAY,
+    LOG_LEVEL,
+)
 from python_web_typer.task_engine_extension.enums_and_mappings import (
     CommonTasks,
     UiToShow,
@@ -48,9 +56,6 @@ from submodules.python_task_queue_scheduler.task_queue.tasks_queue import TasksQ
 logger = logging.getLogger(__name__)
 
 DEMO_WEBSITE = "https://www.google.com"
-# reCAPTCHA, hCaptcha, Cloudflare Turnstile / challenge page
-CAPTCHA_SPECIFIC_CLASSES = ["g-recaptcha", "h-captcha", "cf-turnstile"]
-CAPTCHA_SPECIFIC_IDS = ["captcha-form", "recaptcha", "challenge-form"]
 
 
 @contextmanager
@@ -175,6 +180,7 @@ def parse_args() -> argparse.Namespace:
     unfollow.add_argument("--yes", action="store_true", help="skip the confirmation prompt")
     commands.add_parser("stats")
     commands.add_parser("demo")
+    commands.add_parser("gui")
 
     args = parser.parse_args()
     allowed = {
@@ -198,7 +204,12 @@ if __name__ == "__main__":
     logging.getLogger("urllib3").setLevel(logging.INFO)
 
     args = parse_args()
-    if args.command == "demo":
+    if args.command == "gui":
+        # Imported here: PyQt6 is only needed for the GUI
+        from python_web_typer.ui.control_panel import run_gui
+
+        raise SystemExit(run_gui())
+    elif args.command == "demo":
         run_demo()
     elif args.command == "stats":
         show_stats()

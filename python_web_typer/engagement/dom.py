@@ -16,6 +16,8 @@ from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support.ui import WebDriverWait
 
+from ..cancellation import cancellable_sleep
+
 __all__ = [
     "collect_profile_links",
     "find_follow_buttons_with_profiles",
@@ -236,7 +238,7 @@ def wait_until_liked(
                 return True
         except StaleElementReferenceException:
             return True
-        time.sleep(0.3)
+        cancellable_sleep(0.3)
     return False
 
 
@@ -262,7 +264,7 @@ def wait_until_emptied(driver: WebDriver, element: WebElement, timeout: float = 
             return True
         if not (text or "").strip():
             return True
-        time.sleep(0.3)
+        cancellable_sleep(0.3)
     return False
 
 
@@ -292,5 +294,5 @@ def wait_until_label_changes(
     while time.monotonic() < deadline:
         if not has_follow_label(driver, element, labels):
             return True
-        time.sleep(0.3)
+        cancellable_sleep(0.3)
     return False

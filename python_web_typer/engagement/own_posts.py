@@ -6,13 +6,13 @@ search, no other account's content.
 """
 
 import logging
-import time
 from dataclasses import dataclass
 from typing import Callable, Optional, Tuple
 
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
 
+from ..cancellation import cancellable_sleep
 from ..config import AUTO_LIKE_VIEW_DELAY, AUTO_OWN_POSTS_DELAY, SCROLL_PAUSE
 from ..humanize import draw
 from ..task_engine_extension.tasks import scroll_to_bottom
@@ -81,7 +81,7 @@ def _comment_field(driver: WebDriver, own: OwnPostsSpec) -> Optional[WebElement]
             if field is not None:
                 return field
         driver.execute_script("window.scrollBy(0, window.innerHeight * 0.8);")
-        time.sleep(draw(SCROLL_PAUSE))
+        cancellable_sleep(draw(SCROLL_PAUSE))
     return None
 
 
@@ -130,7 +130,7 @@ def run_own_posts(session: OwnPostsSession, settings: dict, me: str) -> None:
         if session.done:
             return
         driver.get(url)
-        time.sleep(draw(AUTO_LIKE_VIEW_DELAY))
+        cancellable_sleep(draw(AUTO_LIKE_VIEW_DELAY))
         actions = []
 
         if settings["like"]:

@@ -1,12 +1,12 @@
 """Quota, pacing and failure tracking shared by the follow / unfollow / like runs."""
 
 import logging
-import time
 from dataclasses import dataclass, field
 from typing import Any, ClassVar
 
 from selenium.webdriver.remote.webdriver import WebDriver
 
+from ..cancellation import cancellable_sleep
 from ..humanize import Number, draw
 from .store import FollowedStore
 
@@ -72,4 +72,4 @@ class ActionSession:
             details,
         )
         if not self.done and not self.dry_run:
-            time.sleep(draw(self.delay))
+            cancellable_sleep(draw(self.delay))

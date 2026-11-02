@@ -1,8 +1,7 @@
-import time
-
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
 
+from ..cancellation import cancellable_sleep
 from ..config import TYPING_DELAY
 from ..humanize import Number, draw
 
@@ -51,7 +50,7 @@ def simulate_typing(
 
     for char in value:
         # Mimic natural typing speed
-        time.sleep(draw(delay))
+        cancellable_sleep(draw(delay))
         element.send_keys(char)
 
         if javascript_key_events_to_be_mimiced:

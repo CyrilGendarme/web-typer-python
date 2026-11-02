@@ -1,11 +1,11 @@
 import logging
-import time
 
 from selenium.common.exceptions import TimeoutException, WebDriverException
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.support.ui import WebDriverWait
 
+from ..cancellation import cancellable_sleep
 from ..config import SCROLL_PAUSE
 from ..humanize import Number, draw
 from ..webpage_interactions.pick_webpage_element import (
@@ -150,7 +150,7 @@ def drag_and_drop_file(
 
 # core
 def sleep(delay: Number) -> None:
-    time.sleep(draw(delay))
+    cancellable_sleep(draw(delay))
 
 
 # core
@@ -245,7 +245,7 @@ def scroll_to_bottom(
     unchanged = 0
     for _ in range(max_rounds):
         position = driver.execute_script(_SCROLL_TO_BOTTOM_JS)
-        time.sleep(draw(pause))
+        cancellable_sleep(draw(pause))
 
         unchanged = unchanged + 1 if position == last_position else 0
         if unchanged >= stable_rounds:

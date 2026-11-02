@@ -1,12 +1,12 @@
 """Unfollow every followed account except the ones in the keep list."""
 
 import logging
-import time
 from dataclasses import dataclass
 from typing import Iterable, Optional, Set, Tuple
 
 from selenium.webdriver.remote.webelement import WebElement
 
+from ..cancellation import cancellable_sleep
 from ..config import AUTO_FOLLOW_IDLE_SCROLLS, AUTO_UNFOLLOW_DELAY, SCROLL_PAUSE
 from ..humanize import draw
 from ..task_engine_extension.tasks import scroll_to_bottom
@@ -131,7 +131,7 @@ def _run_in_list(session: UnfollowSession, keep: Set[str]) -> None:
 
         idle_scrolls = 0 if fresh else idle_scrolls + 1
         scroll_scope(driver, unfollow.scope_css)
-        time.sleep(draw(SCROLL_PAUSE))
+        cancellable_sleep(draw(SCROLL_PAUSE))
 
 
 def _run_on_profiles(session: UnfollowSession, keep: Set[str]) -> None:
@@ -169,7 +169,7 @@ def _run_on_profiles(session: UnfollowSession, keep: Set[str]) -> None:
             # Not followed (e.g. a recommendation shown next to the list)
             logger.debug("[%s] No unfollow button on %s", spec.name, account_id)
             continue
-        time.sleep(draw(SCROLL_PAUSE))
+        cancellable_sleep(draw(SCROLL_PAUSE))
         session.unfollow(button, account_id, url)
 
 

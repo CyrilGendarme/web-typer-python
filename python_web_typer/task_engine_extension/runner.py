@@ -8,9 +8,9 @@ avoids both.
 """
 
 import logging
-import time
 from typing import Optional
 
+from ..cancellation import cancellable_sleep
 from ..humanize import Number, draw
 from submodules.python_task_queue_scheduler.task_queue.tasks_queue import (
     TasksQueue,
@@ -55,4 +55,4 @@ def run_all_tasks(
         if not run_next_task(task_queue):
             return
         if pause_between_tasks:
-            time.sleep(draw(pause_between_tasks))
+            cancellable_sleep(draw(pause_between_tasks))

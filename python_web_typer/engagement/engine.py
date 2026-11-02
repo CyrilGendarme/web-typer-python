@@ -3,7 +3,6 @@
 import logging
 import random
 import re
-import time
 from dataclasses import dataclass
 from typing import Callable, FrozenSet, Iterator, Optional, Tuple
 from urllib.parse import quote_plus
@@ -11,6 +10,7 @@ from urllib.parse import quote_plus
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
 
+from ..cancellation import cancellable_sleep
 from ..config import (
     AUTO_FOLLOW_BROWSE_DELAY,
     AUTO_FOLLOW_FOLLOW_DELAY,
@@ -120,7 +120,7 @@ class PlatformSpec:
 
 
 def browse_pause() -> None:
-    time.sleep(draw(AUTO_FOLLOW_BROWSE_DELAY))
+    cancellable_sleep(draw(AUTO_FOLLOW_BROWSE_DELAY))
 
 
 class FollowSession(ActionSession):
@@ -276,4 +276,4 @@ def run_listing(session: FollowSession, settings: dict) -> None:
 
             idle_scrolls = 0 if fresh else idle_scrolls + 1
             scroll_scope(driver, spec.listing_scope_css)
-            time.sleep(draw(SCROLL_PAUSE))
+            cancellable_sleep(draw(SCROLL_PAUSE))

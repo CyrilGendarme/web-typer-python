@@ -27,6 +27,7 @@ _LAZY_MODULES = (
     ".desktop_windows_interactions.simulate_actions",
     ".desktop_windows_interactions.windows_selection",
     ".ui.captcha_wait",
+    ".ui.control_panel",
 )
 
 

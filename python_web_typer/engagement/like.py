@@ -3,13 +3,13 @@
 import logging
 import random
 import re
-import time
 from dataclasses import dataclass
 from typing import Optional, Tuple
 from urllib.parse import quote_plus
 
 from selenium.webdriver.remote.webelement import WebElement
 
+from ..cancellation import cancellable_sleep
 from ..config import AUTO_LIKE_DELAY, AUTO_LIKE_POSTS_PER_TERM, AUTO_LIKE_VIEW_DELAY
 from ..humanize import draw
 from ..task_engine_extension.tasks import scroll_to_bottom
@@ -120,5 +120,5 @@ def run_like(session: LikeSession, settings: dict) -> None:
                 store.mark(store_key, post_id, SKIPPED_POST, url)
                 continue
 
-            time.sleep(draw(AUTO_LIKE_VIEW_DELAY))
+            cancellable_sleep(draw(AUTO_LIKE_VIEW_DELAY))
             session.like(button, post_id, url)
