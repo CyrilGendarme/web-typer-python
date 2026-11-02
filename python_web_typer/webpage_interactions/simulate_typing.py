@@ -29,6 +29,7 @@ def simulate_typing(
     delay: Number = TYPING_DELAY,
     shall_focus_out_after_typing: bool = True,
     javascript_key_events_to_be_mimiced: bool = False,
+    clear_first: bool = True,
 ) -> None:
     """
     Simulates typing characters into an input field with delays and triggers related events.
@@ -41,10 +42,12 @@ def simulate_typing(
     :param javascript_key_events_to_be_mimiced: Also dispatch synthetic JS key events per character.
         send_keys already emits trusted key events, so this is only needed for pages that
         listen to events send_keys doesn't reach. Synthetic events have isTrusted=false.
+    :param clear_first: Clear the field before typing. Rich chat editors (contenteditable)
+        can break on a programmatic clear and are emptied by the page after sending anyway.
     """
 
-    # Clear the field before typing
-    element.clear()
+    if clear_first:
+        element.clear()
 
     for char in value:
         # Mimic natural typing speed

@@ -5,6 +5,9 @@ Usage:
     python main.py unfollow platform ... [--dry-run] [--yes]
                                            unfollow everyone except the keep list
     python main.py like [platform ...]     like posts (instagram, youtube, soundcloud)
+    python main.py chat [platform ...]     timed messages in your own live chats
+    python main.py own-posts [platform ...]
+                                           like / comment your own latest posts
     python main.py stats                   accounts followed/skipped per platform
     python main.py demo                    Google search demo
 """
@@ -14,12 +17,16 @@ import logging
 import threading
 from contextlib import contextmanager
 
-from python_web_typer.auto_follow import (
+from python_web_typer.engagement import (
     PLATFORMS,
     FollowedStore,
+    chat_platforms,
+    check_chat_settings,
     enabled_platforms,
     keep_list,
     like_platforms,
+    own_account,
+    own_posts_platforms,
 )
 from python_web_typer.config import AUTO_FOLLOW_DB_PATH, DEBUG, DEBUG_DELAY, LOG_LEVEL
 from python_web_typer.task_engine_extension.enums_and_mappings import (
@@ -122,6 +129,18 @@ def run_like(platforms) -> None:
             tasks_queue.add_task(CommonTasks.AUTO_LIKE, driver, platform)
 
 
+def run_chat(platforms) -> None:
+    # A single task: the platforms run side by side, one tab each
+    with browser_session() as (driver, tasks_queue):
+        tasks_queue.add_task(CommonTasks.AUTO_CHAT, driver, platforms)
+
+
+def run_own_posts(platforms) -> None:
+    with browser_session() as (driver, tasks_queue):
+        for platform in platforms:
+            tasks_queue.add_task(CommonTasks.AUTO_OWN_POSTS, driver, platform)
+
+
 def run_login(platforms) -> None:
     """Opens each login page and waits: the session is saved in the browser profile."""
     driver = get_webdriver()
@@ -145,7 +164,7 @@ def show_stats() -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest="command", required=True)
-    for name in ("login", "follow", "like"):
+    for name in ("login", "follow", "like", "chat", "own-posts"):
         command = commands.add_parser(name)
         command.add_argument(
             "platforms", nargs="*", metavar="platform", help=", ".join(PLATFORMS)
@@ -158,7 +177,11 @@ def parse_args() -> argparse.Namespace:
     commands.add_parser("demo")
 
     args = parser.parse_args()
-    allowed = like_platforms() if args.command == "like" else list(PLATFORMS)
+    allowed = {
+        "like": like_platforms(),
+        "chat": chat_platforms(),
+        "own-posts": own_posts_platforms(),
+    }.get(args.command, list(PLATFORMS))
     unknown = set(getattr(args, "platforms", ())) - set(allowed)
     if unknown:
         parser.error(f"unsupported platform(s): {', '.join(sorted(unknown))} (choose from {', '.join(allowed)})")
@@ -183,6 +206,26 @@ if __name__ == "__main__":
         run_login(args.platforms or list(PLATFORMS))
     elif args.command == "like":
         run_like(args.platforms or like_platforms())
+    elif args.command == "chat":
+        platforms = args.platforms or chat_platforms(configured_only=True)
+        if not platforms:
+            raise SystemExit("No channel configured in config.AUTO_CHAT.")
+        try:
+            check_chat_settings(platforms)
+        except ValueError as e:
+            raise SystemExit(f"Invalid config.AUTO_CHAT: {e}")
+        run_chat(platforms)
+    elif args.command == "own-posts":
+        platforms = args.platforms or own_posts_platforms(configured_only=True)
+        if not platforms:
+            raise SystemExit("No account set in config.OWN_ACCOUNTS.")
+        try:
+            for platform in platforms:
+                if not own_account(platform):
+                    raise ValueError(f"[{platform}] set your account in config.OWN_ACCOUNTS")
+        except ValueError as e:
+            raise SystemExit(f"Invalid config: {e}")
+        run_own_posts(platforms)
     elif args.command == "unfollow":
         try:
             confirmed = confirm_unfollow(args.platforms, args.dry_run, args.yes)

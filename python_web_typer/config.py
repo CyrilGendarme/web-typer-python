@@ -37,6 +37,19 @@ BROWSER_PROFILES_DIR = os.path.join(
     os.path.expanduser("~"), ".python_web_typer", "profiles"
 )
 
+# Your own account per platform: "@name", "name" or profile URL. Used to find your
+# following list (unfollow), your live chat (chat) and your posts (own-posts).
+OWN_ACCOUNTS = {
+    "facebook": "",
+    "instagram": "",
+    "soundcloud": "",
+    "mixcloud": "",
+    "youtube": "",  # "@handle"
+    "rumble": "",
+    "kick": "",
+    "twitch": "",
+}
+
 # ---------------------------
 # Auto-follow
 # ---------------------------
@@ -99,16 +112,16 @@ AUTO_UNFOLLOW_DEFAULTS = {
     # Accounts never unfollowed: usernames ("@name" or "name") or profile URLs.
     # An entry that can't be recognised aborts the platform (nothing unfollowed).
     "keep": [],
-    # Your own username, required where the following list URL contains it
+    # Overrides OWN_ACCOUNTS (required for instagram, soundcloud, mixcloud)
     "own_account": "",
 }
 
 AUTO_UNFOLLOW = {
     # Facebook: REMOVES FRIENDS (only undone by a new friend request)
     "facebook": {"max_unfollows": Humanized(5, 8, min=1), "max_unfollows_per_24h": Humanized(15, 20)},
-    "instagram": {"own_account": ""},  # required
-    "soundcloud": {"own_account": ""},  # required (profile URL name)
-    "mixcloud": {"own_account": ""},  # required (profile URL name)
+    "instagram": {},
+    "soundcloud": {},
+    "mixcloud": {},
     "youtube": {},
     "rumble": {},
     "kick": {},
@@ -135,6 +148,62 @@ AUTO_LIKE_DEFAULTS = {
 
 AUTO_LIKE = {
     "instagram": {"max_likes_per_24h": Humanized(50, 70)},
+    "youtube": {},
+    "soundcloud": {},
+}
+
+# ---------------------------
+# Auto-chat: timed messages in YOUR OWN live chats (one browser tab per platform)
+# ---------------------------
+
+# Messages picked at random, never one of the last few sent
+AUTO_CHAT_MESSAGES = [
+    "Thanks for tuning in!",
+    "Enjoying the mix? Drop a follow so you don't miss the next one",
+    "Tracklist and next dates on my profile",
+]
+
+AUTO_CHAT_DEFAULTS = {
+    # Overrides OWN_ACCOUNTS. Or set "chat_url" to the chat page.
+    "channel": "",
+    "chat_url": "",
+    "messages": AUTO_CHAT_MESSAGES,
+    "interval": Humanized(600.0, 900.0, min=240.0),  # seconds between two messages
+    "max_messages": Humanized(12, 18, min=1),  # messages per run
+}
+
+AUTO_CHAT = {
+    "mixcloud": {},
+    "youtube": {},  # the current live is found from your "@handle"
+    "rumble": {},  # chat_url required: the URL of the live (it changes every stream)
+    "twitch": {},
+    "kick": {},
+}
+
+# ---------------------------
+# Own posts: like and comment YOUR OWN latest posts (each post handled once)
+# ---------------------------
+
+# Comments picked at random, never one of the last few posted
+AUTO_OWN_POSTS_MESSAGES = [
+    "Full tracklist in the description",
+    "Thanks for listening, more coming soon!",
+    "Which track was your favourite?",
+]
+
+# Pause (seconds) between two posts
+AUTO_OWN_POSTS_DELAY = Humanized(20.0, 45.0, min=8.0)
+
+AUTO_OWN_POSTS_DEFAULTS = {
+    "like": True,
+    "comment": True,
+    "messages": AUTO_OWN_POSTS_MESSAGES,
+    "max_posts": Humanized(5, 8, min=1),  # posts handled per run
+    "scrolls": Humanized(2, 4, min=1),  # pages of your post list loaded
+}
+
+AUTO_OWN_POSTS = {
+    "instagram": {},
     "youtube": {},
     "soundcloud": {},
 }

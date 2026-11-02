@@ -12,7 +12,9 @@ from selenium.webdriver.remote.webdriver import WebDriver
 from ..task_engine_extension.tasks import scroll_to_bottom
 from .dom import collect_profile_links, wait_for
 from .engine import FOLLOW_LABELS, PlatformSpec
+from .chat import ChatSpec, youtube_live_chat_url
 from .like import LikeSpec
+from .own_posts import OwnPostsSpec
 from .unfollow import UnfollowSpec
 
 __all__ = ["PLATFORMS"]
@@ -24,6 +26,15 @@ _END = r"/?(?:[?&#].*)?$"
 
 # Like button labels (normalised, see dom.py)
 _LIKE_LABELS = ("like", "j'aime", "vind ik leuk", "gefällt mir", "me gusta")
+
+# Comment submit button labels (normalised, see dom.py)
+_COMMENT_SUBMIT_LABELS = ("comment", "ajouter un commentaire", "commenter", "reageren", "kommentieren")
+
+
+def _soundcloud_own_track(post_id: str, me: str) -> bool:
+    """Track ids are "user/track": only keep tracks uploaded by `me`."""
+    return post_id.split("/", 1)[0].lower() == me.lower()
+
 
 # Unfollow button labels (normalised, see dom.py)
 _FOLLOWING_LABELS = (
@@ -142,6 +153,11 @@ def _instagram_listing_pages(driver: WebDriver, spec: PlatformSpec, settings: di
 
 INSTAGRAM = PlatformSpec(
     name="instagram",
+    # Your profile grid; Enter posts the comment
+    own_posts=OwnPostsSpec(
+        posts_url="https://www.instagram.com/{me}/",
+        comment_input_css="form textarea, textarea[aria-label]",
+    ),
     # Hashtag pages -> posts / reels; big heart only (comments have small ones)
     like=LikeSpec(
         search_url="https://www.instagram.com/explore/tags/{tag}/",
@@ -175,6 +191,13 @@ INSTAGRAM = PlatformSpec(
 
 SOUNDCLOUD = PlatformSpec(
     name="soundcloud",
+    # Your tracks (reposts excluded by owner check); Enter posts the comment
+    own_posts=OwnPostsSpec(
+        posts_url="https://soundcloud.com/{me}/tracks",
+        posts_scope_css="main, #content",
+        comment_input_css="input.commentForm__input, .commentForm input, .commentForm textarea",
+        is_own_post=_soundcloud_own_track,
+    ),
     # Track search -> track pages (user/track, not user/sets, user/likes...)
     like=LikeSpec(
         search_url="https://soundcloud.com/search/sounds?q={query}",
@@ -210,6 +233,7 @@ SOUNDCLOUD = PlatformSpec(
 
 MIXCLOUD = PlatformSpec(
     name="mixcloud",
+    chat=ChatSpec(chat_url="https://www.mixcloud.com/live/{channel}/"),
     profile_url="https://www.mixcloud.com/{id}/",
     unfollow=UnfollowSpec(
         following_url="https://www.mixcloud.com/{me}/following/",
@@ -227,6 +251,20 @@ MIXCLOUD = PlatformSpec(
 
 YOUTUBE = PlatformSpec(
     name="youtube",
+    # Your channel's videos; comments load when scrolled to, behind a placeholder
+    own_posts=OwnPostsSpec(
+        posts_url="https://www.youtube.com/{me}/videos",
+        posts_scope_css="ytd-rich-grid-renderer, #contents",
+        comment_open_css="#simplebox-placeholder",
+        comment_input_css="#contenteditable-root",
+        comment_submit_labels=_COMMENT_SUBMIT_LABELS,
+    ),
+    # /@handle/live redirects to the current live, whose chat is opened as a popout
+    chat=ChatSpec(
+        chat_url="https://www.youtube.com/{channel}/live",
+        input_css='div#input[contenteditable], [contenteditable="true"]',
+        resolve_url=youtube_live_chat_url,
+    ),
     # Video search -> watch pages; the like button exposes aria-pressed
     like=LikeSpec(
         search_url="https://www.youtube.com/results?search_query={query}&sp=EgIQAQ%253D%253D",
@@ -255,6 +293,8 @@ YOUTUBE = PlatformSpec(
 
 RUMBLE = PlatformSpec(
     name="rumble",
+    # Live URLs change every stream: chat_url must be set in config.AUTO_CHAT
+    chat=ChatSpec(chat_url=None, input_css="#chat-message-text-input, textarea"),
     profile_url="https://rumble.com/{id}",
     unfollow=UnfollowSpec(
         following_url="https://rumble.com/subscriptions",
@@ -269,6 +309,10 @@ RUMBLE = PlatformSpec(
 
 KICK = PlatformSpec(
     name="kick",
+    chat=ChatSpec(
+        chat_url="https://kick.com/popout/{channel}/chat",
+        input_css='[data-input="true"], #message-input, textarea, [contenteditable="true"]',
+    ),
     profile_url="https://kick.com/{id}",
     unfollow=UnfollowSpec(
         following_url="https://kick.com/following",
@@ -287,6 +331,10 @@ KICK = PlatformSpec(
 
 TWITCH = PlatformSpec(
     name="twitch",
+    chat=ChatSpec(
+        chat_url="https://www.twitch.tv/popout/{channel}/chat",
+        input_css='[data-a-target="chat-input"], textarea, [contenteditable="true"]',
+    ),
     profile_url="https://www.twitch.tv/{id}",
     unfollow=UnfollowSpec(
         following_url="https://www.twitch.tv/directory/following/channels",

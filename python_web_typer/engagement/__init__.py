@@ -1,10 +1,12 @@
 """
 Auto-follow accounts on social platforms, never following the same account twice,
-unfollow every account except a keep list, and like posts.
+unfollow every account except a keep list, like posts, post timed messages in
+your own live chats, and like / comment your own posts.
 
 Log in once per platform in the automation browser profile (python main.py login),
-then run python main.py follow / unfollow / like. Settings live in
-config.AUTO_FOLLOW, config.AUTO_UNFOLLOW and config.AUTO_LIKE.
+then run python main.py follow / unfollow / like / chat / own-posts. Settings
+live in config.OWN_ACCOUNTS, AUTO_FOLLOW, AUTO_UNFOLLOW, AUTO_LIKE, AUTO_CHAT
+and AUTO_OWN_POSTS.
 """
 
 import logging
@@ -13,17 +15,24 @@ from typing import Dict, List, Optional, Set
 from selenium.webdriver.remote.webdriver import WebDriver
 
 from ..config import (
+    AUTO_CHAT,
+    AUTO_CHAT_DEFAULTS,
     AUTO_FOLLOW,
     AUTO_FOLLOW_DB_PATH,
     AUTO_FOLLOW_DEFAULTS,
     AUTO_LIKE,
     AUTO_LIKE_DEFAULTS,
+    AUTO_OWN_POSTS,
+    AUTO_OWN_POSTS_DEFAULTS,
     AUTO_UNFOLLOW,
     AUTO_UNFOLLOW_DEFAULTS,
+    OWN_ACCOUNTS,
 )
 from ..humanize import draw
+from .chat import chat_page_url, run_chat
 from .engine import FollowSession, run_listing, run_search
 from .like import LIKED, LikeSession, likes_store_key, run_like
+from .own_posts import OwnPostsSession, run_own_posts
 from .platforms import PLATFORMS
 from .store import FOLLOWED, UNFOLLOWED, FollowedStore
 from .unfollow import UnfollowSession, normalize_keep_list, run_unfollow
@@ -40,6 +49,14 @@ __all__ = [
     "like_settings",
     "like_platforms",
     "auto_like",
+    "chat_settings",
+    "chat_platforms",
+    "check_chat_settings",
+    "auto_chat",
+    "own_account",
+    "own_posts_settings",
+    "own_posts_platforms",
+    "auto_own_posts",
 ]
 
 logger = logging.getLogger(__name__)
@@ -90,8 +107,26 @@ def auto_follow(
             store.close()
 
 
+def own_account(platform: str, override: str = "") -> Optional[str]:
+    """
+    Your account id on `platform`: `override`, else config.OWN_ACCOUNTS. None if unset.
+
+    Raises:
+        ValueError: if the configured value isn't a valid account of this platform.
+    """
+    entry = override or OWN_ACCOUNTS.get(platform, "")
+    if not entry:
+        return None
+    account_id = PLATFORMS[platform].resolve_account(entry)
+    if account_id is None:
+        raise ValueError(f"[{platform}] own account not recognised: {entry!r}")
+    return account_id
+
+
 def unfollow_settings(platform: str) -> Dict:
-    return {**AUTO_UNFOLLOW_DEFAULTS, **AUTO_UNFOLLOW.get(platform, {})}
+    settings = {**AUTO_UNFOLLOW_DEFAULTS, **AUTO_UNFOLLOW.get(platform, {})}
+    settings["own_account"] = settings["own_account"] or OWN_ACCOUNTS.get(platform, "")
+    return settings
 
 
 def keep_list(platform: str) -> Set[str]:
@@ -188,6 +223,88 @@ def auto_like(
         session = LikeSession(driver, store, spec, quota)
         run_like(session, settings)
         logger.info("[%s] Done: %d liked", platform, session.count)
+        return session.count
+    finally:
+        if own_store:
+            store.close()
+
+
+def chat_settings(platform: str) -> Dict:
+    settings = {**AUTO_CHAT_DEFAULTS, **AUTO_CHAT.get(platform, {})}
+    settings["channel"] = settings["channel"] or OWN_ACCOUNTS.get(platform, "")
+    return settings
+
+
+def chat_platforms(configured_only: bool = False) -> List[str]:
+    """Platforms with live chat support (with a channel / chat_url set, if asked)."""
+    names = [name for name, spec in PLATFORMS.items() if spec.chat and name in AUTO_CHAT]
+    if configured_only:
+        names = [n for n in names if chat_settings(n)["channel"] or chat_settings(n)["chat_url"]]
+    return names
+
+
+def check_chat_settings(platforms: List[str]) -> None:
+    """
+    Raises:
+        ValueError: on a missing / invalid channel or an empty message list.
+    """
+    for platform in platforms:
+        settings = chat_settings(platform)
+        if not settings["messages"]:
+            raise ValueError(f"[{platform}] messages list is empty")
+        if not chat_page_url(PLATFORMS[platform], settings):
+            raise ValueError(f"[{platform}] set channel (or chat_url) in config.AUTO_CHAT")
+
+
+def auto_chat(driver: WebDriver, platforms: List[str]) -> Dict[str, int]:
+    """
+    Posts messages from config.AUTO_CHAT in your own live chat on each platform
+    (one tab each), every `interval`, up to `max_messages`. Returns sent counts.
+    """
+    check_chat_settings(platforms)
+    counts = run_chat(driver, [PLATFORMS[p] for p in platforms], chat_settings)
+    logger.info("Chat done: %s", counts)
+    return counts
+
+
+def own_posts_settings(platform: str) -> Dict:
+    return {**AUTO_OWN_POSTS_DEFAULTS, **AUTO_OWN_POSTS.get(platform, {})}
+
+
+def own_posts_platforms(configured_only: bool = False) -> List[str]:
+    """Platforms supporting own-posts (with your account set, if asked)."""
+    names = [n for n, spec in PLATFORMS.items() if spec.own_posts and n in AUTO_OWN_POSTS]
+    if configured_only:
+        names = [n for n in names if OWN_ACCOUNTS.get(n)]
+    return names
+
+
+def auto_own_posts(
+    driver: WebDriver, platform: str, store: Optional[FollowedStore] = None
+) -> int:
+    """
+    Likes and/or comments (config.AUTO_OWN_POSTS) up to `max_posts` of your own
+    latest posts not handled yet. Returns the number of posts updated.
+
+    Raises:
+        ValueError: if your account isn't set or valid in config.OWN_ACCOUNTS.
+    """
+    spec = PLATFORMS[platform]
+    settings = own_posts_settings(platform)
+    me = own_account(platform)
+    if not me:
+        raise ValueError(f"[{platform}] set your account in config.OWN_ACCOUNTS")
+    if settings["comment"] and not settings["messages"]:
+        raise ValueError(f"[{platform}] messages list is empty")
+    own_store = store is None
+    store = store or FollowedStore(AUTO_FOLLOW_DB_PATH)
+
+    try:
+        quota = draw(settings["max_posts"])
+        logger.info("[%s] Updating up to %d of your posts (%s)", platform, quota, me)
+        session = OwnPostsSession(driver, store, spec, quota)
+        run_own_posts(session, settings, me)
+        logger.info("[%s] Done: %d posts updated", platform, session.count)
         return session.count
     finally:
         if own_store:

@@ -54,24 +54,11 @@ def normalize_keep_list(spec, entries: Iterable[str]) -> Set[str]:
     """
     keep = set()
     for entry in entries:
-        account_id = _resolve_account(spec, entry)
+        account_id = spec.resolve_account(entry)
         if account_id is None:
             raise ValueError(f"[{spec.name}] keep list entry not recognised: {entry!r}")
         keep.add(account_id)
     return keep
-
-
-def _resolve_account(spec, entry: str) -> Optional[str]:
-    entry = entry.strip()
-    if entry.lower().startswith("http"):
-        return spec.account_id(entry)
-    name = entry.strip("/")
-    # "@name" is the id itself on YouTube, a decoration elsewhere: try both
-    for candidate in (name, name.lstrip("@"), "@" + name.lstrip("@")):
-        account_id = spec.account_id(spec.profile_url.format(id=candidate))
-        if account_id:
-            return account_id
-    return None
 
 
 class UnfollowSession(ActionSession):
@@ -189,9 +176,9 @@ def _run_on_profiles(session: UnfollowSession, keep: Set[str]) -> None:
 def run_unfollow(session: UnfollowSession, settings: dict, keep: Set[str]) -> None:
     spec = session.spec
     following_url = spec.unfollow.following_url
-    own_account = (settings.get("own_account") or "").strip().lstrip("@")
+    own_account = spec.resolve_account(settings["own_account"]) if settings.get("own_account") else ""
     if "{me}" in following_url and not own_account:
-        logger.error("[%s] own_account must be set in config.AUTO_UNFOLLOW", spec.name)
+        logger.error("[%s] Set your account in config.OWN_ACCOUNTS", spec.name)
         return
 
     session.driver.get(following_url.format(me=own_account))

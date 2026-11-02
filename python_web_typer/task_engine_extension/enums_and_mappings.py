@@ -1,6 +1,12 @@
 from enum import Enum, auto
 
-from ..auto_follow import auto_follow, auto_like, auto_unfollow
+from ..engagement import (
+    auto_chat,
+    auto_follow,
+    auto_like,
+    auto_own_posts,
+    auto_unfollow,
+)
 from .example_tasks import (
     click_cookie_btn,
     click_on_first_result,
@@ -41,9 +47,11 @@ class CommonTasks(Enum):
     TYPE_KEYS = auto()
     ACCESS_URL = auto()
     SCROLL_TO_BOTTOM = auto()
-    AUTO_FOLLOW = auto()  # args: driver, platform name (see auto_follow.PLATFORMS)
+    AUTO_FOLLOW = auto()  # args: driver, platform name (see engagement.PLATFORMS)
     AUTO_UNFOLLOW = auto()  # args: driver, platform name, dry_run
     AUTO_LIKE = auto()  # args: driver, platform name
+    AUTO_CHAT = auto()  # args: driver, list of platform names (run side by side)
+    AUTO_OWN_POSTS = auto()  # args: driver, platform name
     NO_OP = auto()  # Represents no operation
 
 
@@ -74,6 +82,8 @@ common_func_map = {
     CommonTasks.AUTO_FOLLOW: auto_follow,
     CommonTasks.AUTO_UNFOLLOW: auto_unfollow,
     CommonTasks.AUTO_LIKE: auto_like,
+    CommonTasks.AUTO_CHAT: auto_chat,
+    CommonTasks.AUTO_OWN_POSTS: auto_own_posts,
     # A callable (not None) so the queue can execute and dequeue it
     CommonTasks.NO_OP: _no_op,
 }

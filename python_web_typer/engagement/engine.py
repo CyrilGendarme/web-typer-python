@@ -31,7 +31,9 @@ from .dom import (
     wait_for,
     wait_until_label_changes,
 )
+from .chat import ChatSpec
 from .like import LikeSpec
+from .own_posts import OwnPostsSpec
 from .session import ActionSession
 from .store import FOLLOWED, SKIPPED
 from .unfollow import UnfollowSpec
@@ -91,6 +93,10 @@ class PlatformSpec:
     unfollow: Optional[UnfollowSpec] = None
     # How to find and like posts (like.LikeSpec)
     like: Optional[LikeSpec] = None
+    # Where your own live chat is (chat.ChatSpec)
+    chat: Optional[ChatSpec] = None
+    # Where your own posts are and how to comment them (own_posts.OwnPostsSpec)
+    own_posts: Optional[OwnPostsSpec] = None
 
     def account_id(self, url: str) -> Optional[str]:
         match = re.match(self.profile_url_re, url, re.IGNORECASE)
@@ -98,6 +104,19 @@ class PlatformSpec:
             return None
         account_id = match.group(1).lower()
         return None if account_id in self.reserved_ids else account_id
+
+    def resolve_account(self, entry: str) -> Optional[str]:
+        """Account id from a config entry: "@name", "name" or a profile URL."""
+        entry = entry.strip()
+        if entry.lower().startswith("http"):
+            return self.account_id(entry)
+        name = entry.strip("/")
+        # "@name" is the id itself on YouTube, a decoration elsewhere: try both
+        for candidate in (name, name.lstrip("@"), "@" + name.lstrip("@")):
+            account_id = self.account_id(self.profile_url.format(id=candidate))
+            if account_id:
+                return account_id
+        return None
 
 
 def browse_pause() -> None:

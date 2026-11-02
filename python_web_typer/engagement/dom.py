@@ -19,13 +19,16 @@ from selenium.webdriver.support.ui import WebDriverWait
 __all__ = [
     "collect_profile_links",
     "find_follow_buttons_with_profiles",
+    "find_editable",
     "find_follow_button",
     "find_like_button",
+    "find_visible",
     "has_follow_label",
     "wait_until_liked",
     "read_text",
     "scroll_scope",
     "wait_for",
+    "wait_until_emptied",
     "wait_until_label_changes",
 ]
 
@@ -127,6 +130,22 @@ const [el, labels] = arguments;
 return el.isConnected && isUnliked(el, new Set(labels));
 """
 
+# First visible, enabled text field matching `css` (textarea, input, contenteditable)
+_FIND_EDITABLE_JS = r"""
+const [css] = arguments;
+for (const el of document.querySelectorAll(css)) {
+    if (!el.offsetParent) continue;
+    if (el.isContentEditable || ((el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') && !el.disabled && !el.readOnly)) return el;
+}
+return null;
+"""
+
+_EDITABLE_TEXT_JS = r"""
+const [el] = arguments;
+if (!el.isConnected) return null;
+return ('value' in el && el.tagName !== 'DIV') ? el.value : el.innerText;
+"""
+
 _READ_TEXT_JS = r"""
 const [css, maxLength] = arguments;
 const nodes = css ? [...document.querySelectorAll(css)] : [];
@@ -216,6 +235,32 @@ def wait_until_liked(
             if not driver.execute_script(_IS_UNLIKED_JS, element, list(labels)):
                 return True
         except StaleElementReferenceException:
+            return True
+        time.sleep(0.3)
+    return False
+
+
+def find_visible(driver: WebDriver, css: str) -> Optional[WebElement]:
+    """First element matching `css` that is rendered."""
+    return driver.execute_script(
+        "for (const el of document.querySelectorAll(arguments[0])) if (el.offsetParent) return el; return null;",
+        css,
+    )
+
+
+def find_editable(driver: WebDriver, css: str) -> Optional[WebElement]:
+    return driver.execute_script(_FIND_EDITABLE_JS, css)
+
+
+def wait_until_emptied(driver: WebDriver, element: WebElement, timeout: float = 6) -> bool:
+    """True once the field is empty (chat apps clear their input after sending)."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            text = driver.execute_script(_EDITABLE_TEXT_JS, element)
+        except StaleElementReferenceException:
+            return True
+        if not (text or "").strip():
             return True
         time.sleep(0.3)
     return False
