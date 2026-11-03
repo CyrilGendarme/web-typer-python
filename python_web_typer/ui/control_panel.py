@@ -39,12 +39,24 @@ from PyQt6.QtWidgets import (
 )
 
 from .. import config
-from ..cancellation import Cancelled, cancellable_sleep, request_cancel, reset_cancel
+from ..cancellation import (
+    Cancelled,
+    cancellable_sleep,
+    hold_actions,
+    release_actions,
+    request_cancel,
+    reset_cancel,
+)
 from ..engagement import (
     PLATFORMS,
     FollowedStore,
     auto_chat,
     auto_follow,
+    BadCredentials,
+    BotBlocked,
+    auto_login,
+    credentials,
+    login_platforms,
     auto_like,
     auto_own_posts,
     auto_unfollow,
@@ -59,8 +71,9 @@ from ..engagement import (
 )
 from ..humanize import Humanized
 from ..user_settings import save_user_settings
+from ..webpage_interactions.human_check import find_human_check
 from ..webpage_interactions.mutation_observer import start_dom_observer_thread
-from ..webpage_interactions.pick_webdriver import get_webdriver
+from ..webpage_interactions.pick_webdriver import get_webdriver, open_profile_browser
 
 __all__ = ["ControlPanel", "run_gui"]
 
@@ -196,23 +209,35 @@ OWN_POSTS_FIELDS = (
 # ---------------------------
 
 
-class _CaptchaNotifier:
-    """Stands in for the task queue of the DOM observer: forwards to a callback."""
-
-    def __init__(self, callback: Callable[[], None]):
-        self._callback = callback
-
-    def add_task(self, *_args, **_kwargs) -> None:
-        self._callback()
+def _browser_alive(driver) -> bool:
+    if driver is None:
+        return False
+    try:
+        driver.current_window_handle
+        return True
+    except Exception:
+        return False
 
 
 class ActionWorker(QThread):
     captcha = pyqtSignal(str)
 
-    def __init__(self, title: str, action: Callable):
+    def __init__(self, title: str, action: Callable, automated: bool = True):
+        """`action(driver)`; with `automated=False`, `action(None)`: it opens its own window."""
         super().__init__()
         self.title = title
         self._action = action
+        self._automated = automated
+        self._browser_closed = threading.Event()
+
+    def _on_human_check(self, description: str) -> None:
+        hold_actions(description)
+        self.captcha.emit(f"{self.title}: {description}")
+
+    def _on_browser_gone(self) -> None:
+        """The user closed the browser window: end the action at once, cleanly."""
+        self._browser_closed.set()
+        request_cancel()
 
     def run(self) -> None:
         reset_cancel()
@@ -220,25 +245,39 @@ class ActionWorker(QThread):
         stop_observer = threading.Event()
         logger.info("▶ %s", self.title)
         try:
+            if not self._automated:
+                logger.info("■ %s finished: %s", self.title, self._action(None))
+                return
             driver = get_webdriver()
+            # Any CAPTCHA / verification holds the action at its next step until solved
             start_dom_observer_thread(
                 driver,
                 stop_event=stop_observer,
-                watched_classes=config.CAPTCHA_SPECIFIC_CLASSES,
-                watched_ids=config.CAPTCHA_SPECIFIC_IDS,
-                task_queue=_CaptchaNotifier(lambda: self.captcha.emit(self.title)),
-                task_enum="captcha",
+                detector=find_human_check,
+                on_detected=self._on_human_check,
+                on_cleared=release_actions,
+                on_browser_gone=self._on_browser_gone,
             )
             result = self._action(driver)
             logger.info("■ %s finished: %s", self.title, result)
         except Cancelled:
-            logger.warning("■ %s stopped", self.title)
+            if self._browser_closed.is_set():
+                logger.info("■ %s ended: browser window closed", self.title)
+            else:
+                logger.warning("■ %s stopped", self.title)
         except ValueError as e:  # configuration problems
             logger.error("■ %s: %s", self.title, e)
-        except Exception:
-            logger.exception("■ %s failed", self.title)
+        except Exception as e:
+            if driver is None and self._automated:  # the browser didn't start (profile already open...)
+                logger.error("■ %s: %s", self.title, str(e).splitlines()[0])
+            # A WebDriver call may fail before the observer notices the closed window
+            elif self._browser_closed.is_set() or not _browser_alive(driver):
+                logger.info("■ %s ended: browser window closed", self.title)
+            else:
+                logger.exception("■ %s failed", self.title)
         finally:
             stop_observer.set()
+            release_actions()
             if driver is not None:
                 try:
                     driver.quit()
@@ -252,8 +291,15 @@ class ActionWorker(QThread):
 
 
 class ControlPanel(QMainWindow):
+    # [(platform, message shown by the platform)], emitted from the worker thread
+    credentials_refused = pyqtSignal(list)
+    # [(platform, block message)]: bot protection refused the automated browser
+    bot_blocked = pyqtSignal(list)
+
     def __init__(self):
         super().__init__()
+        self.credentials_refused.connect(self._on_credentials_refused)
+        self.bot_blocked.connect(self._on_bot_blocked)
         self.setWindowTitle("Social Media Clicker")
         self.resize(1000, 850)
         self._worker: Optional[ActionWorker] = None
@@ -279,14 +325,16 @@ class ControlPanel(QMainWindow):
         save.clicked.connect(self._save)
         stats = QPushButton("Show stats")
         stats.clicked.connect(self._show_stats)
+        login_all = QPushButton("Log in to all configured")
+        login_all.clicked.connect(self._login_all)
         chat_all = QPushButton("Chat on all configured")
         chat_all.clicked.connect(self._chat_all)
-        self._action_buttons.append(chat_all)
+        self._action_buttons += [login_all, chat_all]
         self._stop = QPushButton("Stop")
         self._stop.setStyleSheet("font-weight: bold;")
         self._stop.clicked.connect(self._request_stop)
         self._status = QLabel()
-        for widget in (save, stats, chat_all, self._stop):
+        for widget in (save, stats, login_all, chat_all, self._stop):
             toolbar.addWidget(widget)
         toolbar.addStretch()
         toolbar.addWidget(self._status)
@@ -338,7 +386,20 @@ class ControlPanel(QMainWindow):
         account_edit.setPlaceholderText("@name, name or profile URL")
         account_edit.textChanged.connect(lambda text: self._set_own_account(name, text))
         form.addRow("My account", account_edit)
-        form.addRow(self._buttons(("Log in", lambda: self._login(spec))))
+        creds = credentials(name)
+        login_edit = QLineEdit(creds["login"])
+        login_edit.setPlaceholderText("email, phone or username used to log in")
+        login_edit.textChanged.connect(lambda text: self._set_credential(name, "login", text.strip()))
+        form.addRow("Login", login_edit)
+        password_edit = QLineEdit(creds["password"])
+        password_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        password_edit.setPlaceholderText("saved in plain text in the settings file")
+        password_edit.textChanged.connect(lambda text: self._set_credential(name, "password", text))
+        form.addRow("Password", password_edit)
+        form.addRow(self._buttons(
+            ("Log in", lambda: self._login(spec)),
+            ("Log in by hand", lambda: self._login_by_hand(spec)),
+        ))
         layout.addWidget(account)
 
         layout.addWidget(self._section(
@@ -429,6 +490,10 @@ class ControlPanel(QMainWindow):
         config.OWN_ACCOUNTS[platform] = text.strip()
         self._dirty = True
 
+    def _set_credential(self, platform: str, key: str, value: str) -> None:
+        config.CREDENTIALS.setdefault(platform, {})[key] = value
+        self._dirty = True
+
     def _save(self) -> bool:
         try:
             save_user_settings(config.USER_SETTINGS_PATH, vars(config))
@@ -449,22 +514,87 @@ class ControlPanel(QMainWindow):
 
     # ----- actions -----
 
-    def _start(self, title: str, action: Callable) -> None:
+    def _start(self, title: str, action: Callable, automated: bool = True) -> None:
+        """Runs `action(driver)` in its own browser; closing that browser window ends it."""
         if self._worker is not None:
             return
-        self._worker = ActionWorker(title, action)
+        self._worker = ActionWorker(title, action, automated)
         self._worker.captcha.connect(self._on_captcha)
         self._worker.finished.connect(self._on_finished)
         self._set_running(True, title)
         self._worker.start()
 
     def _login(self, spec) -> None:
+        """Automatic login when credentials are set; otherwise, or if blocked, by hand."""
+
         def action(driver):
-            driver.get(spec.login_url)
+            if not all(credentials(spec.name).values()):
+                driver.get(spec.login_url)
+            else:
+                try:
+                    if auto_login(driver, spec.name):
+                        return "logged in"
+                except BadCredentials as e:
+                    logger.error("%s", e)
+                    self.credentials_refused.emit([(e.platform, e.message)])
+                except BotBlocked as e:
+                    # The automated window stays blocked: nothing to finish in it
+                    logger.error("%s", e)
+                    self.bot_blocked.emit([(e.platform, e.message)])
+                    return "blocked by bot protection, use \"Log in by hand\""
+            # Blocked or refused automatic login: the page is left as is, to be finished by hand
             logger.info("Log in to %s in the browser, then press Stop to close it", spec.name)
             cancellable_sleep(24 * 3600)
 
         self._start(f"Log in to {spec.name}", action)
+
+    def _login_by_hand(self, spec) -> None:
+        """A plain browser window (not automated) on the login page, for sites refusing automation."""
+
+        def action(_driver):
+            window = open_profile_browser(spec.login_url)
+            logger.info("Log in to %s in the browser window, then close it (the session is kept)", spec.name)
+            try:
+                while window.poll() is None:
+                    cancellable_sleep(1)
+            except Cancelled:
+                try:
+                    window.terminate()
+                except OSError:  # confined snap process
+                    logger.warning("Couldn't close the %s window: close it yourself", spec.name)
+                raise
+            return "browser window closed, session kept in the profile"
+
+        self._start(f"Log in by hand to {spec.name}", action, automated=False)
+
+    def _login_all(self) -> None:
+        platforms = login_platforms(configured_only=True)
+        if not platforms:
+            QMessageBox.information(self, "Log in", "Set a login and a password on a platform first.")
+            return
+
+        def action(driver):
+            failed, refused, bot_blocked = [], [], []
+            for platform in platforms:
+                try:
+                    if not auto_login(driver, platform):
+                        failed.append(platform)
+                except BadCredentials as e:
+                    logger.error("%s", e)
+                    refused.append((e.platform, e.message))
+                except BotBlocked as e:
+                    logger.error("%s", e)
+                    bot_blocked.append((e.platform, e.message))
+            if refused:
+                self.credentials_refused.emit(refused)
+            if bot_blocked:
+                self.bot_blocked.emit(bot_blocked)
+            problems = [f"blocked: {', '.join(failed)}"] if failed else []
+            problems += [f"wrong credentials: {', '.join(p for p, _ in refused)}"] if refused else []
+            problems += [f"bot protection: {', '.join(p for p, _ in bot_blocked)}"] if bot_blocked else []
+            return "; ".join(problems) or f"logged in to {len(platforms)} platform(s)"
+
+        self._start("Log in to all configured", action)
 
     def _unfollow(self, platform: str, dry_run: bool) -> None:
         try:
@@ -512,9 +642,40 @@ class ControlPanel(QMainWindow):
         self._worker = None
         self._set_running(False)
 
-    def _on_captcha(self, title: str) -> None:
-        logger.warning("CAPTCHA detected during %s: solve it in the browser", title)
-        box = QMessageBox(QMessageBox.Icon.Warning, "CAPTCHA", f"CAPTCHA detected during {title}.\nSolve it in the browser.", parent=self)
+    def _on_credentials_refused(self, refused: list) -> None:
+        lines = "\n\n".join(f"{platform.capitalize()}: \"{message}\"" for platform, message in refused)
+        box = QMessageBox(
+            QMessageBox.Icon.Warning,
+            "Login refused",
+            f"These platforms refused the login or the password:\n\n{lines}\n\n"
+            "Fix them in the platform tab (Login / Password) and log in again.",
+            parent=self,
+        )
+        box.setModal(False)
+        box.show()
+
+    def _on_bot_blocked(self, blocked: list) -> None:
+        lines = "\n\n".join(f"{platform.capitalize()}: \"{message}\"" for platform, message in blocked)
+        box = QMessageBox(
+            QMessageBox.Icon.Warning,
+            "Blocked by bot protection",
+            f"These sites refused the automated browser:\n\n{lines}\n\n"
+            "Retrying only makes the block last longer. Use \"Log in by hand\" in the platform tab: "
+            "it opens a normal browser window on the same profile; log in, close it, and the "
+            "session is kept for the automated actions.",
+            parent=self,
+        )
+        box.setModal(False)
+        box.show()
+
+    def _on_captcha(self, what: str) -> None:
+        QApplication.alert(self)  # flashes the taskbar entry
+        box = QMessageBox(
+            QMessageBox.Icon.Warning,
+            "Action needed in the browser",
+            f"{what}.\n\nThe action is paused: solve it in the browser window, it goes on by itself afterwards.",
+            parent=self,
+        )
         box.setModal(False)
         box.show()
 

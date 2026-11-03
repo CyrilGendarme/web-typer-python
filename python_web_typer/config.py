@@ -54,6 +54,19 @@ OWN_ACCOUNTS = {
     "twitch": "",
 }
 
+# Login per platform, used by "login" (python main.py login, GUI "Log in").
+# Edited in the GUI; saved in plain text in USER_SETTINGS_PATH.
+CREDENTIALS = {
+    name: {"login": "", "password": ""}
+    for name in ("facebook", "instagram", "soundcloud", "mixcloud", "youtube", "rumble", "kick", "twitch")
+}
+# Seconds waited for the session after submitting the credentials
+LOGIN_VERIFICATION_TIMEOUT = 60
+# Seconds left to the operator to solve a CAPTCHA / verification (2FA code, checkpoint)
+LOGIN_HUMAN_CHECK_TIMEOUT = 300
+# Screenshot + visible controls of the page where a login got blocked
+LOGIN_DEBUG_DIR = os.path.join(os.path.expanduser("~"), ".python_web_typer", "login_debug")
+
 # ---------------------------
 # Auto-follow
 # ---------------------------

@@ -25,6 +25,7 @@ __all__ = [
     "get_headless_webdriver",
     "attach_to_open_chrome",
     "launch_chrome_with_debugging",
+    "open_profile_browser",
     "close_driver_and_chrome_by_port",
 ]
 
@@ -93,6 +94,25 @@ def _profile_dir(installed: InstalledBrowser, user_data_dir: Optional[str]) -> O
     return os.path.join(BROWSER_PROFILES_DIR, installed.browser.value)
 
 
+def _profile_in_use(profile_dir: str) -> bool:
+    """True if a browser process already runs on `profile_dir` (only one may)."""
+    for proc in psutil.process_iter(["cmdline"]):
+        cmdline = proc.info["cmdline"] or []
+        if any(profile_dir in arg for arg in cmdline) and not any("driver" in arg for arg in cmdline[:1]):
+            return True
+    return False
+
+
+def _check_profile_free(profile_dir: Optional[str]) -> None:
+    # Otherwise the new browser hands over to the open one and exits, which
+    # WebDriver only reports as "Chrome instance exited"
+    if profile_dir and _profile_in_use(profile_dir):
+        raise RuntimeError(
+            f"The automation browser profile is already open ({profile_dir}): "
+            "close that browser window (e.g. a \"Log in by hand\" one) and retry"
+        )
+
+
 def _snap_driver(installed: InstalledBrowser) -> Optional[str]:
     if not installed.is_snap:
         return None
@@ -103,7 +123,10 @@ def _chromium_options(
     installed: InstalledBrowser, headless: bool, profile_dir: Optional[str]
 ) -> ChromiumOptions:
     options = EdgeOptions() if installed.browser is Browser.EDGE else ChromeOptions()
-    options.binary_location = installed.binary
+    # The snap chromedriver runs confined and can't exec /snap/bin/chromium;
+    # left unset, it launches the browser bundled in its own snap
+    if not installed.is_snap:
+        options.binary_location = installed.binary
     if headless:
         options.add_argument("--headless=new")
 
@@ -172,6 +195,7 @@ def get_webdriver(
 
     profile_dir = _profile_dir(installed, user_data_dir)
     if profile_dir:
+        _check_profile_free(profile_dir)
         os.makedirs(profile_dir, exist_ok=True)
 
     driver_path = _snap_driver(installed)
@@ -275,6 +299,37 @@ def launch_chrome_with_debugging(
             "Debug port %d not reachable after %ss", debug_port, startup_timeout
         )
     return process
+
+
+def open_profile_browser(
+    url: str,
+    browser: Optional[Browser] = None,
+    priority: Iterable = BROWSER_PRIORITY,
+) -> subprocess.Popen:
+    """
+    Opens `url` in the browser and profile `get_webdriver` uses, as a plain
+    window: no WebDriver, no debugging port, nothing automated. For logging in by
+    hand where bot protections refuse automated browsers; the session lands in
+    the profile the automation reuses. Close the window to end the process.
+
+    The profile can't be open in an automated browser at the same time.
+
+    Raises:
+        RuntimeError: If no supported browser is installed.
+    """
+    installed = pick_browser([browser] if browser else priority)
+    if installed is None:
+        raise RuntimeError("No supported browser installed (chromium, firefox, chrome, edge)")
+
+    profile_dir = _profile_dir(installed, USE_DEFAULT_PROFILE)
+    _check_profile_free(profile_dir)
+    os.makedirs(profile_dir, exist_ok=True)
+    if installed.browser is Browser.FIREFOX:
+        args = [installed.binary, "-no-remote", "-profile", profile_dir, url]
+    else:
+        args = [installed.binary, *_QUIET_CHROMIUM_ARGS, f"--user-data-dir={profile_dir}", url]
+    logger.info("Opening %s in %s (not automated)", url, installed.binary)
+    return subprocess.Popen(args)
 
 
 def _find_pid_listening_on(port: int) -> Optional[int]:

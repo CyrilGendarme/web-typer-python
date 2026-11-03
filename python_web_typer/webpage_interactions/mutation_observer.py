@@ -1,6 +1,6 @@
 import logging
 import threading
-from typing import Any, Optional, Sequence
+from typing import Any, Callable, Optional, Sequence
 
 from selenium.common.exceptions import JavascriptException, WebDriverException
 from selenium.webdriver.remote.webdriver import WebDriver
@@ -51,13 +51,22 @@ def observe_dom_changes_with_trigger(
     task_args: Sequence[Any] = (),
     task_to_top: bool = False,
     stop_event: Optional[threading.Event] = None,
+    on_browser_gone: Optional[Callable[[], None]] = None,
+    detector: Optional[Callable[[WebDriver], Optional[str]]] = None,
+    on_detected: Optional[Callable[[str], None]] = None,
+    on_cleared: Optional[Callable[[], None]] = None,
 ) -> None:
     """
     Polls the page and enqueues `task_enum` when any watched item appears.
 
     The task is enqueued once per appearance (rising edge): it is re-armed only
     after the trigger has disappeared from the page. The loop ends when
-    `stop_event` is set or the browser stops responding.
+    `stop_event` is set or the browser stops responding (window closed by the
+    user, crash), in which case `on_browser_gone` is called.
+
+    `detector(driver)` (description or None) replaces the watched_* lists when
+    given. `on_detected(description)` is called when the trigger appears,
+    `on_cleared()` when it is gone again.
     """
     stop_event = stop_event or threading.Event()
     script_args = (
@@ -72,7 +81,10 @@ def observe_dom_changes_with_trigger(
 
     while not stop_event.wait(draw(poll_interval)):
         try:
-            match = driver.execute_script(_DETECT_TRIGGER_JS, *script_args)
+            if detector is not None:
+                match = detector(driver)
+            else:
+                match = driver.execute_script(_DETECT_TRIGGER_JS, *script_args)
             consecutive_errors = 0
         except JavascriptException as e:
             # Typically a page navigation in progress, retry on next poll
@@ -81,12 +93,18 @@ def observe_dom_changes_with_trigger(
         except WebDriverException as e:
             consecutive_errors += 1
             if consecutive_errors >= MUTATION_OBSERVER_MAX_CONSECUTIVE_ERRORS:
-                logger.info("[DOM OBSERVER] Browser unreachable, stopping: %s", e)
+                logger.info("[DOM OBSERVER] Browser unreachable, stopping: %s", str(e).splitlines()[0])
+                if on_browser_gone and not stop_event.is_set():
+                    on_browser_gone()
                 return
             continue
 
+        if was_detected and not match and on_cleared:
+            on_cleared()
         if match and not was_detected:
             logger.info("[DOM OBSERVER] Trigger detected: %s", match)
+            if on_detected:
+                on_detected(match)
             if task_queue:
                 task_queue.add_task(
                     task_enum,
@@ -94,7 +112,7 @@ def observe_dom_changes_with_trigger(
                     check_duplicate=True,
                     add_to_top=task_to_top,
                 )
-            else:
+            elif not on_detected:
                 logger.info("[DOM OBSERVER] Action triggered! (No queue provided)")
 
         was_detected = bool(match)

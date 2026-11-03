@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 # Names of the config dicts {platform: value or {key: value}} the user can edit
 EDITABLE_SETTINGS = (
     "OWN_ACCOUNTS",
+    "CREDENTIALS",
     "AUTO_FOLLOW",
     "AUTO_UNFOLLOW",
     "AUTO_LIKE",
@@ -75,6 +76,9 @@ def save_user_settings(path: str, config: MutableMapping[str, Any]) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     data: Dict[str, Any] = {name: _encode(config[name]) for name in EDITABLE_SETTINGS}
     tmp_path = f"{path}.tmp"
-    with open(tmp_path, "w", encoding="utf-8") as f:
+    # Owner-only: holds the CREDENTIALS passwords
+    fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    os.chmod(tmp_path, 0o600)
+    with open(fd, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
     os.replace(tmp_path, path)  # atomic: never leaves a half-written file

@@ -3,7 +3,8 @@ Auto-follow accounts on social platforms, never following the same account twice
 unfollow every account except a keep list, like posts, post timed messages in
 your own live chats, and like / comment your own posts.
 
-Log in once per platform in the automation browser profile (python main.py login),
+Log in once per platform in the automation browser profile (python main.py login,
+automatic with config.CREDENTIALS),
 then run python main.py follow / unfollow / like / chat / own-posts. Settings
 live in config.OWN_ACCOUNTS, AUTO_FOLLOW, AUTO_UNFOLLOW, AUTO_LIKE, AUTO_CHAT
 and AUTO_OWN_POSTS.
@@ -31,6 +32,7 @@ from ..config import (
 from ..humanize import draw
 from .chat import chat_page_url, run_chat
 from .engine import FollowSession, run_listing, run_search
+from .login import BadCredentials, BotBlocked, auto_login, credentials, login_platforms
 from .like import LIKED, LikeSession, likes_store_key, run_like
 from .own_posts import OwnPostsSession, run_own_posts
 from .platforms import PLATFORMS
@@ -39,6 +41,11 @@ from .unfollow import UnfollowSession, normalize_keep_list, run_unfollow
 
 __all__ = [
     "PLATFORMS",
+    "BadCredentials",
+    "BotBlocked",
+    "auto_login",
+    "credentials",
+    "login_platforms",
     "FollowedStore",
     "platform_settings",
     "enabled_platforms",

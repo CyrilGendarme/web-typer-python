@@ -10,7 +10,7 @@ avoids both.
 import logging
 from typing import Optional
 
-from ..cancellation import cancellable_sleep
+from ..cancellation import Cancelled, cancellable_sleep, is_cancel_requested
 from ..humanize import Number, draw
 from submodules.python_task_queue_scheduler.task_queue.tasks_queue import (
     TasksQueue,
@@ -35,6 +35,9 @@ def run_next_task(task_queue: TasksQueue) -> bool:
     try:
         func(*args)
     except Exception:
+        # Stop requested (e.g. browser closed): the failure is a consequence, not a bug
+        if is_cancel_requested():
+            raise Cancelled()
         logger.exception("Task %s failed", getattr(func, "__name__", func))
     return True
 
@@ -49,6 +52,7 @@ def run_all_tasks(
     prompts raised by the DOM observer) is fully drained.
     """
     while True:
+        cancellable_sleep(0)  # raises Cancelled once a stop was requested
         if priority_queue is not None:
             while run_next_task(priority_queue):
                 pass
