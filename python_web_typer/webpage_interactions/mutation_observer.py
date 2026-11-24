@@ -55,6 +55,7 @@ def observe_dom_changes_with_trigger(
     detector: Optional[Callable[[WebDriver], Optional[str]]] = None,
     on_detected: Optional[Callable[[str], None]] = None,
     on_cleared: Optional[Callable[[], None]] = None,
+    clear_after_polls: int = 4,
 ) -> None:
     """
     Polls the page and enqueues `task_enum` when any watched item appears.
@@ -66,7 +67,9 @@ def observe_dom_changes_with_trigger(
 
     `detector(driver)` (description or None) replaces the watched_* lists when
     given. `on_detected(description)` is called when the trigger appears,
-    `on_cleared()` when it is gone again.
+    `on_cleared()` when it is gone again, i.e. missing from `clear_after_polls`
+    polls in a row (widgets such as Cloudflare Turnstile redraw themselves, which
+    would otherwise read as solved for an instant).
     """
     stop_event = stop_event or threading.Event()
     script_args = (
@@ -77,6 +80,7 @@ def observe_dom_changes_with_trigger(
         list(watched_any_content_in_html),
     )
     was_detected = False
+    misses = 0  # polls in a row without the trigger, while it is detected
     consecutive_errors = 0
 
     while not stop_event.wait(draw(poll_interval)):
@@ -93,15 +97,30 @@ def observe_dom_changes_with_trigger(
         except WebDriverException as e:
             consecutive_errors += 1
             if consecutive_errors >= MUTATION_OBSERVER_MAX_CONSECUTIVE_ERRORS:
+                # Scripts also fail during a slow page change: make sure the window is really gone
+                try:
+                    driver.window_handles
+                    logger.debug("[DOM OBSERVER] Browser still there, retrying: %s", str(e).splitlines()[0])
+                    consecutive_errors = 0
+                    continue
+                except WebDriverException:
+                    pass
                 logger.info("[DOM OBSERVER] Browser unreachable, stopping: %s", str(e).splitlines()[0])
                 if on_browser_gone and not stop_event.is_set():
                     on_browser_gone()
                 return
             continue
 
-        if was_detected and not match and on_cleared:
-            on_cleared()
-        if match and not was_detected:
+        if not match:
+            if was_detected:
+                misses += 1
+                if misses >= clear_after_polls:
+                    was_detected = False
+                    if on_cleared:
+                        on_cleared()
+            continue
+        misses = 0
+        if not was_detected:
             logger.info("[DOM OBSERVER] Trigger detected: %s", match)
             if on_detected:
                 on_detected(match)
@@ -114,8 +133,7 @@ def observe_dom_changes_with_trigger(
                 )
             elif not on_detected:
                 logger.info("[DOM OBSERVER] Action triggered! (No queue provided)")
-
-        was_detected = bool(match)
+        was_detected = True
 
 
 def start_dom_observer_thread(

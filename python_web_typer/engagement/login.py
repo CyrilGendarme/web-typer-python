@@ -41,7 +41,7 @@ from ..webpage_interactions.simulate_click import simulate_click
 from ..webpage_interactions.simulate_typing import simulate_typing
 from .dom import find_follow_button, find_visible, wait_for
 
-__all__ = ["LOGIN_SPECS", "BadCredentials", "BotBlocked", "HumanCheckCallback", "credentials", "login_platforms", "auto_login", "is_logged_in", "dump_page"]
+__all__ = ["LOGIN_SPECS", "BadCredentials", "BotBlocked", "HumanCheckCallback", "check_session", "credentials", "login_platforms", "auto_login", "is_logged_in", "dump_page"]
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +112,11 @@ def click(css: Optional[str] = None, *labels: str) -> Step:
     return Step("click", css, tuple(labels))
 
 
+def maybe_click(css: Optional[str] = None, *labels: str, timeout: float = 8) -> Step:
+    """A click only some variants of the page need (A/B tests, flows that change)."""
+    return Step("click", css, tuple(labels), optional=True, timeout=timeout)
+
+
 def fill(field: str, css: str, timeout: float = 30) -> Step:
     return Step("fill", css, field=field, timeout=timeout)
 
@@ -131,6 +136,19 @@ _REFUSE_OPTIONAL_COOKIES = (
     "only allow essential cookies",
     "optionele cookies weigeren",
     "optionale cookies ablehnen",
+)
+# "Next step" buttons of multi-step forms (normalised labels, see dom.py)
+_CONTINUE_LABELS = ("continue", "continuer", "doorgaan", "weiter", "next", "suivant")
+
+# Buttons offered by error pages ("Sorry, something went wrong")
+_TRY_AGAIN_LABELS = (
+    "click here to try that again",
+    "try again",
+    "retry",
+    "réessayer",
+    "cliquez ici pour réessayer",
+    "opnieuw proberen",
+    "erneut versuchen",
 )
 _REJECT_ALL = ("reject all", "tout refuser", "rejeter", "reject", "alles weigeren", "alle ablehnen")
 
@@ -178,18 +196,22 @@ LOGIN_SPECS: Dict[str, LoginSpec] = {
             submit(),
         ),
         session_cookie="oauth_token",
+        # The form is in an iframe, only loaded for logged-out visitors
+        logged_out_css='iframe[src*="secure.soundcloud.com"]',
     ),
     # /login/ opens the login modal: email -> Continue -> "with your password" -> password
     "mixcloud": LoginSpec(
         url="https://www.mixcloud.com/login/",
         steps=(
-            dismiss(None, "ok"),
+            # Old top banner ("OK") or newer consent box ("Reject all")
+            dismiss(None, *_REJECT_ALL, "ok"),
             fill("login", 'input[name="email"][autocomplete="username"], input[name="email"]'),
             submit(),
-            # Mixcloud emails a one-time code by default
-            click(None, "log in with your password", "se connecter avec votre mot de passe"),
+            # Some variants email a one-time code first, others ask the password directly
+            maybe_click(None, "log in with your password", "se connecter avec votre mot de passe"),
             fill("password", 'input[type="password"]'),
-            submit(),
+            # Enter in the password field doesn't always submit
+            submit(None, *_CONTINUE_LABELS),
         ),
         logged_out_css='[data-testid="top-nav-login-button"], [data-testid="top-nav-login-button-your-account"]',
     ),
@@ -214,7 +236,8 @@ LOGIN_SPECS: Dict[str, LoginSpec] = {
             submit(),
         ),
     ),
-    # Modal opened from the top bar
+    # Modal opened from the top bar. Kasada bot protection (KP_UIDz cookie) may
+    # silently ignore the submit of an automated browser: "Log in by hand" then.
     "kick": LoginSpec(
         url="https://kick.com/",
         steps=(
@@ -232,10 +255,14 @@ LOGIN_SPECS: Dict[str, LoginSpec] = {
         steps=(
             dismiss(None, *_REJECT_ALL),
             fill("login", "#login-username"),
-            fill("password", "#password-input"),
-            submit('[data-a-target="passport-login-button"]'),
+            # Newer flow: email -> "Continue" -> password (older: both fields at once)
+            maybe_click(None, *_CONTINUE_LABELS),
+            fill("password", '#password-input, input[type="password"]'),
+            submit('[data-a-target="passport-login-button"]', "log in", "se connecter", *_CONTINUE_LABELS),
         ),
         session_cookie="auth-token",
+        # The two-step form shows the email field alone at first
+        logged_out_css='#login-username, input[type="password"]',
     ),
 }
 
@@ -360,11 +387,33 @@ class _LoginRun:
         raise LoginFailed(f"{found}: not solved within {LOGIN_HUMAN_CHECK_TIMEOUT}s")
 
     def wait_for(self, condition, timeout: float):
-        """dom.wait_for, pausing (without consuming the timeout) while a human check shows."""
+        """
+        dom.wait_for, pausing (without consuming the timeout) while a human check
+        shows. If the page shows an error with a "try again" button, it is
+        clicked once and the wait starts over.
+        """
+        retried = False
         while True:
             result = wait_for(self.driver, condition, timeout)
-            if result is not None or not self.pause_for_human_check():
+            if result is not None:
                 return result
+            if self.pause_for_human_check():
+                continue
+            if retried or not self._click_try_again():
+                return None
+            retried = True
+
+    def _click_try_again(self) -> bool:
+        try:
+            button = find_follow_button(self.driver, _TRY_AGAIN_LABELS)
+            if button is None:
+                return False
+            logger.info("[%s] Page error, clicking \"%s\"", self.platform, button.text.strip())
+            simulate_click(self.driver, button, wait_time=3)
+        except WebDriverException:
+            return False
+        cancellable_sleep(3)
+        return True
 
     # ----- steps -----
 
@@ -547,6 +596,15 @@ def _initial_state(driver: WebDriver, platform: str) -> Optional[bool]:
     return None if state is None else state == "in"
 
 
+def check_session(driver: WebDriver, platform: str) -> Optional[bool]:
+    """
+    Opens the platform's login page: True if the profile is logged in, False if
+    the login form shows, None if the page didn't tell (blocked, slow).
+    """
+    driver.get(LOGIN_SPECS[platform].url)
+    return _initial_state(driver, platform)
+
+
 def credentials(platform: str) -> dict:
     creds = CREDENTIALS.get(platform) or {}
     return {"login": (creds.get("login") or "").strip(), "password": creds.get("password") or ""}
@@ -611,5 +669,10 @@ def auto_login(driver: WebDriver, platform: str, on_human_check: Optional[HumanC
         logger.info("[%s] Logged in", platform)
         return True
     prefix = dump_page(driver, platform, "no session after submitting")
-    logger.error("[%s] Not logged in after submitting (page saved to %s.*)", platform, prefix)
+    logger.error(
+        "[%s] Not logged in after submitting (page saved to %s.*). If the form is still there "
+        "with no error, the site may silently refuse automated browsers: use \"Log in by hand\"",
+        platform,
+        prefix,
+    )
     return False

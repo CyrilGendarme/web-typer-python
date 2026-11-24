@@ -29,6 +29,7 @@ from python_web_typer.engagement import (
     PLATFORMS,
     BadCredentials,
     BotBlocked,
+    check_session,
     FollowedStore,
     auto_login,
     credentials,
@@ -60,13 +61,17 @@ from python_web_typer.task_engine_extension.enums_and_mappings import (
     webpage_interaction_func_map,
 )
 from python_web_typer.task_engine_extension.runner import run_all_tasks
-from python_web_typer.webpage_interactions.human_check import find_human_check
+from python_web_typer.webpage_interactions.human_check import (
+    find_human_check,
+    present_human_check,
+)
 from python_web_typer.webpage_interactions.mutation_observer import (
     start_dom_observer_thread,
 )
 from python_web_typer.webpage_interactions.pick_webdriver import (
     get_webdriver,
     open_profile_browser,
+    wait_profile_free,
 )
 
 from submodules.python_task_queue_scheduler.task_queue.tasks_queue import TasksQueue
@@ -98,7 +103,7 @@ def browser_session():
             driver,
             stop_event=stop_observer,
             detector=find_human_check,
-            on_detected=_hold_for_human_check,
+            on_detected=lambda description: _hold_for_human_check(driver, description),
             on_cleared=release_actions,
             on_browser_gone=_on_browser_gone,
         )
@@ -200,9 +205,10 @@ def wait_for_enter(driver, prompt: str) -> bool:
                 return False
 
 
-def _hold_for_human_check(description: str) -> None:
+def _hold_for_human_check(driver, description: str) -> None:
     """Observer: a CAPTCHA / verification showed. The action waits at its next step until solved."""
     hold_actions(description)
+    present_human_check(driver)
     print(f"\a\n>>> {description}: solve it in the browser, the action goes on afterwards.")
 
 
@@ -220,7 +226,7 @@ def run_login(platforms) -> None:
             driver,
             stop_event=stop_observer,
             detector=find_human_check,
-            on_detected=_hold_for_human_check,
+            on_detected=lambda description: _hold_for_human_check(driver, description),
             on_cleared=release_actions,
             on_browser_gone=_on_browser_gone,
         )
@@ -252,6 +258,18 @@ def run_login_by_hand(platforms) -> None:
         window = open_profile_browser(PLATFORMS[platform].login_url)
         print(f"Log in to {platform} in the browser window, then close it...")
         window.wait()
+
+    # Did it work? Checked in the automated browser, which the actions use
+    if not wait_profile_free():
+        print("The browser window is still shutting down: run 'python main.py login' to check the sessions.")
+        return
+    driver = get_webdriver()
+    try:
+        for platform in platforms:
+            state = check_session(driver, platform)
+            print(f"{platform:<12} " + {True: "logged in", False: "NOT logged in", None: "couldn't tell"}[state])
+    finally:
+        driver.quit()
 
 
 def show_stats() -> None:

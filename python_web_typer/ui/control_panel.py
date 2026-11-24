@@ -63,6 +63,7 @@ from ..engagement import (
     chat_platforms,
     chat_settings,
     check_chat_settings,
+    check_session,
     keep_list,
     like_settings,
     own_posts_settings,
@@ -71,9 +72,9 @@ from ..engagement import (
 )
 from ..humanize import Humanized
 from ..user_settings import save_user_settings
-from ..webpage_interactions.human_check import find_human_check
+from ..webpage_interactions.human_check import find_human_check, present_human_check
 from ..webpage_interactions.mutation_observer import start_dom_observer_thread
-from ..webpage_interactions.pick_webdriver import get_webdriver, open_profile_browser
+from ..webpage_interactions.pick_webdriver import get_webdriver, open_profile_browser, wait_profile_free
 
 __all__ = ["ControlPanel", "run_gui"]
 
@@ -209,6 +210,26 @@ OWN_POSTS_FIELDS = (
 # ---------------------------
 
 
+_SESSION_STATES = {
+    True: "logged in, session kept in the profile",
+    False: "NOT logged in (the login didn't go through, or the window closed too early)",
+    None: "couldn't tell whether the login worked (page blocked or slow)",
+}
+
+
+def _report_session(platform: str) -> str:
+    """After a login by hand: checks in the automated browser whether the session is there."""
+    if not wait_profile_free():
+        return "the browser window is still shutting down, couldn't check the session"
+    driver = get_webdriver()
+    try:
+        state = check_session(driver, platform)
+    finally:
+        driver.quit()
+    (logger.info if state else logger.warning)("[%s] %s", platform, _SESSION_STATES[state])
+    return _SESSION_STATES[state]
+
+
 def _browser_alive(driver) -> bool:
     if driver is None:
         return False
@@ -229,9 +250,12 @@ class ActionWorker(QThread):
         self._action = action
         self._automated = automated
         self._browser_closed = threading.Event()
+        self._driver = None  # for the observer callbacks
 
     def _on_human_check(self, description: str) -> None:
         hold_actions(description)
+        if self._driver is not None:
+            present_human_check(self._driver)
         self.captcha.emit(f"{self.title}: {description}")
 
     def _on_browser_gone(self) -> None:
@@ -248,7 +272,7 @@ class ActionWorker(QThread):
             if not self._automated:
                 logger.info("■ %s finished: %s", self.title, self._action(None))
                 return
-            driver = get_webdriver()
+            driver = self._driver = get_webdriver()
             # Any CAPTCHA / verification holds the action at its next step until solved
             start_dom_observer_thread(
                 driver,
@@ -563,7 +587,7 @@ class ControlPanel(QMainWindow):
                 except OSError:  # confined snap process
                     logger.warning("Couldn't close the %s window: close it yourself", spec.name)
                 raise
-            return "browser window closed, session kept in the profile"
+            return _report_session(spec.name)
 
         self._start(f"Log in by hand to {spec.name}", action, automated=False)
 

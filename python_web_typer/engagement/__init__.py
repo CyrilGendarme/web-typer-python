@@ -32,7 +32,7 @@ from ..config import (
 from ..humanize import draw
 from .chat import chat_page_url, run_chat
 from .engine import FollowSession, run_listing, run_search
-from .login import BadCredentials, BotBlocked, auto_login, credentials, login_platforms
+from .login import BadCredentials, BotBlocked, auto_login, check_session, credentials, login_platforms
 from .like import LIKED, LikeSession, likes_store_key, run_like
 from .own_posts import OwnPostsSession, run_own_posts
 from .platforms import PLATFORMS
@@ -44,6 +44,7 @@ __all__ = [
     "BadCredentials",
     "BotBlocked",
     "auto_login",
+    "check_session",
     "credentials",
     "login_platforms",
     "FollowedStore",

@@ -26,6 +26,7 @@ __all__ = [
     "attach_to_open_chrome",
     "launch_chrome_with_debugging",
     "open_profile_browser",
+    "wait_profile_free",
     "close_driver_and_chrome_by_port",
 ]
 
@@ -111,6 +112,23 @@ def _check_profile_free(profile_dir: Optional[str]) -> None:
             f"The automation browser profile is already open ({profile_dir}): "
             "close that browser window (e.g. a \"Log in by hand\" one) and retry"
         )
+
+
+def wait_profile_free(timeout: float = 15, priority: Iterable = BROWSER_PRIORITY) -> bool:
+    """
+    Waits until no browser runs on the automation profile (a closed window takes
+    a moment to shut its processes down). True once free.
+    """
+    installed = pick_browser(priority)
+    if installed is None:
+        return True
+    profile_dir = _profile_dir(installed, USE_DEFAULT_PROFILE)
+    deadline = time.monotonic() + timeout
+    while _profile_in_use(profile_dir):
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.5)
+    return True
 
 
 def _snap_driver(installed: InstalledBrowser) -> Optional[str]:
