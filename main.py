@@ -61,6 +61,7 @@ from python_web_typer.task_engine_extension.enums_and_mappings import (
     webpage_interaction_func_map,
 )
 from python_web_typer.task_engine_extension.runner import run_all_tasks
+from python_web_typer.webpage_interactions.consent import start_consent_refuser
 from python_web_typer.webpage_interactions.human_check import (
     find_human_check,
     present_human_check,
@@ -99,6 +100,7 @@ def browser_session():
     stop_observer = threading.Event()
 
     try:
+        start_consent_refuser(driver, stop_observer)
         start_dom_observer_thread(
             driver,
             stop_event=stop_observer,
@@ -222,6 +224,7 @@ def run_login(platforms) -> None:
     stop_observer = threading.Event()
     try:
         # Only watches the browser: closing it stops a running automatic login
+        start_consent_refuser(driver, stop_observer)
         start_dom_observer_thread(
             driver,
             stop_event=stop_observer,

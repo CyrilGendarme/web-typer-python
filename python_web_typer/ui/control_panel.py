@@ -72,6 +72,7 @@ from ..engagement import (
 )
 from ..humanize import Humanized
 from ..user_settings import save_user_settings
+from ..webpage_interactions.consent import start_consent_refuser
 from ..webpage_interactions.human_check import find_human_check, present_human_check
 from ..webpage_interactions.mutation_observer import start_dom_observer_thread
 from ..webpage_interactions.pick_webdriver import get_webdriver, open_profile_browser, wait_profile_free
@@ -273,6 +274,7 @@ class ActionWorker(QThread):
                 logger.info("■ %s finished: %s", self.title, self._action(None))
                 return
             driver = self._driver = get_webdriver()
+            start_consent_refuser(driver, stop_observer)
             # Any CAPTCHA / verification holds the action at its next step until solved
             start_dom_observer_thread(
                 driver,

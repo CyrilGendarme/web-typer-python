@@ -245,7 +245,9 @@ MIXCLOUD = PlatformSpec(
     profile_url_re=r"^https://www\.mixcloud\.com/([a-z0-9_-]+)" + _END,
     reserved_ids=frozenset(
         "search discover upload dashboard live select about settings notifications "
-        "messages favorites pro tag genres categories privacy terms faq".split()
+        "messages favorites pro tag genres categories privacy terms faq trending signup login "
+        "premium upgrade community creator-tools creators blog jobs developers help support "
+        "cookies library feed".split()
     ),
 )
 
