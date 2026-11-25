@@ -158,7 +158,7 @@ def run_chat(
             "[%s] Chat open, %d messages planned, first in %.0fs",
             spec.name,
             sessions[spec.name].quota,
-            next_at[spec.name] - time.monotonic(),
+            max(0.0, next_at[spec.name] - time.monotonic()),
         )
 
     active = [name for name, session in sessions.items() if not session.done]

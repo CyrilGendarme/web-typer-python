@@ -3,7 +3,9 @@
 import logging
 from dataclasses import dataclass
 from typing import Iterable, Optional, Set, Tuple
+from urllib.parse import urlparse
 
+from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.remote.webelement import WebElement
 
 from ..cancellation import cancellable_sleep
@@ -85,9 +87,9 @@ class UnfollowSession(ActionSession):
         # Done once the account's button no longer reads "Following"
         return wait_until_label_changes(self.driver, first_button, steps[0])
 
-    def unfollow(self, button: Optional[WebElement], account_id: str, url: str) -> bool:
+    def unfollow(self, button: WebElement, account_id: str, url: str) -> bool:
         if self.dry_run:
-            self.succeeded(account_id)
+            self.succeeded(account_id, f", button {_label(button)!r}")
             return True
 
         if not self._click_steps(button):
@@ -97,6 +99,14 @@ class UnfollowSession(ActionSession):
         self.store.mark(self.spec.name, account_id, UNFOLLOWED, url)
         self.succeeded(account_id)
         return True
+
+
+def _label(button: WebElement) -> str:
+    """Visible text or aria-label of a button, for dry-run logs."""
+    try:
+        return (button.text or button.get_attribute("aria-label") or "").strip()[:40]
+    except WebDriverException:
+        return "?"
 
 
 def _run_in_list(session: UnfollowSession, keep: Set[str]) -> None:
@@ -156,9 +166,7 @@ def _run_on_profiles(session: UnfollowSession, keep: Set[str]) -> None:
     for account_id, url in accounts.items():
         if session.done:
             return
-        if session.dry_run:
-            session.unfollow(None, account_id, url)
-            continue
+        # Also in a dry run: only accounts showing an unfollow button are reported
         driver.get(url)
         button = wait_for(
             driver,
@@ -181,5 +189,17 @@ def run_unfollow(session: UnfollowSession, settings: dict, keep: Set[str]) -> No
         logger.error("[%s] Set your account in config.OWN_ACCOUNTS", spec.name)
         return
 
-    session.driver.get(following_url.format(me=own_account))
+    url = following_url.format(me=own_account)
+    session.driver.get(url)
+    # Logged out, some sites send the "following" page home, where every featured
+    # account would be taken for one you follow
+    wanted, landed = urlparse(url).path.rstrip("/"), urlparse(session.driver.current_url).path.rstrip("/")
+    if landed != wanted:
+        logger.error(
+            "[%s] %s redirected to %s (not logged in?), nothing unfollowed",
+            spec.name,
+            url,
+            session.driver.current_url,
+        )
+        return
     (_run_on_profiles if spec.unfollow.on_profile else _run_in_list)(session, keep)

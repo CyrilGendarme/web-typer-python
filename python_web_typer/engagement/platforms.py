@@ -236,7 +236,7 @@ MIXCLOUD = PlatformSpec(
     chat=ChatSpec(chat_url="https://www.mixcloud.com/live/{channel}/"),
     profile_url="https://www.mixcloud.com/{id}/",
     unfollow=UnfollowSpec(
-        following_url="https://www.mixcloud.com/{me}/following/",
+        following_url="https://www.mixcloud.com/{me}/community/following/",
         steps=(_FOLLOWING_LABELS,),
         scope_css="main",
     ),
