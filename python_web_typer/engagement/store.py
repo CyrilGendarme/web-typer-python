@@ -13,7 +13,7 @@ from typing import Optional
 
 from ..config import AUTO_FOLLOW_DB_PATH
 
-__all__ = ["FOLLOWED", "SKIPPED", "UNFOLLOWED", "FollowedStore"]
+__all__ = ["FOLLOWED", "SKIPPED", "UNFOLLOWED", "FollowedStore", "ReadOnlyStore"]
 
 logger = logging.getLogger(__name__)
 
@@ -115,3 +115,19 @@ class FollowedStore:
         ):
             result.setdefault(platform, {})[status] = count
         return result
+
+
+class ReadOnlyStore:
+    """
+    A FollowedStore for dry runs: reads go through (known accounts, 24h counts),
+    writes are dropped, so a dry run doesn't change what a real run does later.
+    """
+
+    def __init__(self, store: FollowedStore):
+        self._store = store
+
+    def __getattr__(self, name):
+        return getattr(self._store, name)
+
+    def mark(self, platform: str, account_id: str, status: str, *_args, **_kwargs) -> None:
+        logger.debug("[dry-run] Not recorded: %s %s %s", platform, account_id, status)

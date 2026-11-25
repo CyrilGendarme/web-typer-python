@@ -26,6 +26,10 @@ DEFAULT_ELEMENT_WAIT_TIME = 10
 CAPTCHA_SPECIFIC_CLASSES = ["g-recaptcha", "h-captcha", "cf-turnstile"]
 CAPTCHA_SPECIFIC_IDS = ["captcha-form", "recaptcha", "challenge-form"]
 
+# Seconds a CAPTCHA / verification may hold an action before it is abandoned (the
+# next platform runs). Also ends automatic checks that never let the browser through.
+HUMAN_CHECK_HOLD_TIMEOUT = 300
+
 # Seconds between two typed characters
 TYPING_DELAY = Humanized(0.08, 0.2, min=0.03)
 # Seconds waited after each scroll (lets lazy content load, reading time)
@@ -91,8 +95,8 @@ AUTO_FOLLOW_SEARCH_TERMS = ["deep house", "techno mix", "lofi beats", "dj set"]
 # Defaults for every platform, overridden per platform in AUTO_FOLLOW below
 AUTO_FOLLOW_DEFAULTS = {
     "enabled": True,
-    "max_follows": Humanized(10, 15, min=1),  # accounts to follow per run
-    "max_follows_per_24h": Humanized(30, 40),  # cap over a rolling 24h window
+    "max_follows": Humanized(4, 6, min=1),  # accounts to follow per run
+    "max_follows_per_24h": Humanized(12, 15),  # cap over a rolling 24h window
     # Search platforms: only follow accounts below this many followers
     "max_followers": Humanized(1000, 1500),
     "search_terms": AUTO_FOLLOW_SEARCH_TERMS,
@@ -103,11 +107,11 @@ AUTO_FOLLOW_DEFAULTS = {
 AUTO_FOLLOW = {
     # Friends of a random friend of yours -> "Add friend"
     "facebook": {
-        "max_follows": Humanized(5, 8, min=1),
-        "max_follows_per_24h": Humanized(15, 20),
+        "max_follows": Humanized(2, 3, min=1),
+        "max_follows_per_24h": Humanized(5, 8),
     },
     # Followers of these accounts -> "Follow"
-    "instagram": {"max_follows_per_24h": Humanized(40, 50), "seed_accounts": []},
+    "instagram": {"max_follows_per_24h": Humanized(10, 15), "seed_accounts": []},
     "soundcloud": {"max_followers": Humanized(500, 750)},
     "mixcloud": {"max_followers": Humanized(500, 750)},
     "youtube": {"max_followers": Humanized(1000, 1500)},
@@ -124,8 +128,8 @@ AUTO_FOLLOW = {
 AUTO_UNFOLLOW_DELAY = Humanized(12.0, 30.0, min=4.0)
 
 AUTO_UNFOLLOW_DEFAULTS = {
-    "max_unfollows": Humanized(15, 25, min=1),  # accounts to unfollow per run
-    "max_unfollows_per_24h": Humanized(50, 70),  # cap over a rolling 24h window
+    "max_unfollows": Humanized(5, 8, min=1),  # accounts to unfollow per run
+    "max_unfollows_per_24h": Humanized(15, 20),  # cap over a rolling 24h window
     # Accounts never unfollowed: usernames ("@name" or "name") or profile URLs.
     # An entry that can't be recognised aborts the platform (nothing unfollowed).
     "keep": [],
@@ -135,7 +139,7 @@ AUTO_UNFOLLOW_DEFAULTS = {
 
 AUTO_UNFOLLOW = {
     # Facebook: REMOVES FRIENDS (only undone by a new friend request)
-    "facebook": {"max_unfollows": Humanized(5, 8, min=1), "max_unfollows_per_24h": Humanized(15, 20)},
+    "facebook": {"max_unfollows": Humanized(2, 3, min=1), "max_unfollows_per_24h": Humanized(5, 8)},
     "instagram": {},
     "soundcloud": {},
     "mixcloud": {},
@@ -157,14 +161,14 @@ AUTO_LIKE_DELAY = Humanized(10.0, 25.0, min=4.0)
 AUTO_LIKE_POSTS_PER_TERM = Humanized(8, 12, min=2)
 
 AUTO_LIKE_DEFAULTS = {
-    "max_likes": Humanized(15, 25, min=1),  # posts to like per run
-    "max_likes_per_24h": Humanized(60, 80),  # cap over a rolling 24h window
+    "max_likes": Humanized(5, 8, min=1),  # posts to like per run
+    "max_likes_per_24h": Humanized(20, 30),  # cap over a rolling 24h window
     "search_terms": AUTO_FOLLOW_SEARCH_TERMS,  # Instagram: used as hashtags
     "search_scrolls": Humanized(2, 4, min=1),  # result pages loaded per search
 }
 
 AUTO_LIKE = {
-    "instagram": {"max_likes_per_24h": Humanized(50, 70)},
+    "instagram": {"max_likes_per_24h": Humanized(15, 20)},
     "youtube": {},
     "soundcloud": {},
 }
@@ -186,7 +190,7 @@ AUTO_CHAT_DEFAULTS = {
     "chat_url": "",
     "messages": AUTO_CHAT_MESSAGES,
     "interval": Humanized(600.0, 900.0, min=240.0),  # seconds between two messages
-    "max_messages": Humanized(12, 18, min=1),  # messages per run
+    "max_messages": Humanized(4, 6, min=1),  # messages per run
 }
 
 AUTO_CHAT = {
@@ -215,7 +219,7 @@ AUTO_OWN_POSTS_DEFAULTS = {
     "like": True,
     "comment": True,
     "messages": AUTO_OWN_POSTS_MESSAGES,
-    "max_posts": Humanized(5, 8, min=1),  # posts handled per run
+    "max_posts": Humanized(2, 4, min=1),  # posts handled per run
     "scrolls": Humanized(2, 4, min=1),  # pages of your post list loaded
 }
 

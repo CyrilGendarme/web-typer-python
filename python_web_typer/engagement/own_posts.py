@@ -68,12 +68,17 @@ class OwnPostsSession(ActionSession):
     delay = AUTO_OWN_POSTS_DELAY
 
 
-def _comment_field(driver: WebDriver, own: OwnPostsSpec) -> Optional[WebElement]:
-    """Scrolls down until the comment field (or its placeholder) appears."""
+def _comment_field(driver: WebDriver, own: OwnPostsSpec, open_box: bool = True) -> Optional[WebElement]:
+    """
+    Scrolls down until the comment field (or its placeholder) appears. With
+    `open_box=False` (dry run), returns the placeholder without clicking it.
+    """
     for _ in range(_COMMENT_FIELD_SCROLLS):
         if own.comment_open_css:
             opener = find_visible(driver, own.comment_open_css)
             if opener is not None:
+                if not open_box:
+                    return opener
                 simulate_click(driver, opener, wait_time=5)
                 return wait_for(driver, lambda d: find_editable(d, own.comment_input_css), timeout=5)
         else:
@@ -95,6 +100,8 @@ def _like(session: OwnPostsSession) -> Optional[bool]:
     )
     if button is None:
         return None
+    if session.dry_run:
+        return True
     return simulate_click(session.driver, button, wait_time=5) and wait_until_liked(
         session.driver, button, like.labels
     )
@@ -142,9 +149,11 @@ def run_own_posts(session: OwnPostsSession, settings: dict, me: str) -> None:
                 actions.append("liked")
 
         if settings["comment"]:
-            field = _comment_field(driver, own)
+            field = _comment_field(driver, own, open_box=not session.dry_run)
             if field is None:
                 logger.info("[%s] No comment field on %s (comments off?)", spec.name, post_id)
+            elif session.dry_run:
+                actions.append(f"commented {pick_message(settings['messages'], recent)!r}")
             else:
                 message = pick_message(settings["messages"], recent)
                 if not type_and_submit(driver, field, message, own.comment_submit_labels):

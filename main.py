@@ -3,21 +3,27 @@ Usage:
     python main.py login [platform ...]    log in once (config.CREDENTIALS), kept in the browser profile
     python main.py login --by-hand platform ...
                                            log in yourself in a plain (not automated) window
-    python main.py follow [platform ...]   auto-follow (default: enabled platforms)
+    python main.py follow [platform ...] [--dry-run]
+                                           auto-follow (default: enabled platforms)
     python main.py unfollow platform ... [--dry-run] [--yes]
                                            unfollow everyone except the keep list
-    python main.py like [platform ...]     like posts (instagram, youtube, soundcloud)
-    python main.py chat [platform ...]     timed messages in your own live chats
-    python main.py own-posts [platform ...]
+    python main.py like [platform ...] [--dry-run]
+                                           like posts (instagram, youtube, soundcloud)
+    python main.py chat [platform ...] [--dry-run]
+                                           timed messages in your own live chats
+    python main.py own-posts [platform ...] [--dry-run]
                                            like / comment your own latest posts
     python main.py stats                   accounts followed/skipped per platform
     python main.py gui                     control panel (settings, actions, logs)
     python main.py demo                    Google search demo
+
+    --dry-run: goes through the pages and finds the buttons, clicks / types / records nothing
 """
 
 import argparse
 import logging
 import queue
+import signal
 import sys
 import threading
 from contextlib import contextmanager
@@ -134,10 +140,10 @@ def run_demo() -> None:
         tasks_queue.add_task(CommonTasks.SLEEP, 10)
 
 
-def run_follow(platforms) -> None:
+def run_follow(platforms, dry_run: bool = False) -> None:
     with browser_session() as (driver, tasks_queue):
         for platform in platforms:
-            tasks_queue.add_task(CommonTasks.AUTO_FOLLOW, driver, platform)
+            tasks_queue.add_task(CommonTasks.AUTO_FOLLOW, driver, platform, dry_run)
 
 
 def confirm_unfollow(platforms, dry_run: bool, assume_yes: bool) -> bool:
@@ -159,22 +165,22 @@ def run_unfollow(platforms, dry_run: bool) -> None:
             tasks_queue.add_task(CommonTasks.AUTO_UNFOLLOW, driver, platform, dry_run)
 
 
-def run_like(platforms) -> None:
+def run_like(platforms, dry_run: bool = False) -> None:
     with browser_session() as (driver, tasks_queue):
         for platform in platforms:
-            tasks_queue.add_task(CommonTasks.AUTO_LIKE, driver, platform)
+            tasks_queue.add_task(CommonTasks.AUTO_LIKE, driver, platform, dry_run)
 
 
-def run_chat(platforms) -> None:
+def run_chat(platforms, dry_run: bool = False) -> None:
     # A single task: the platforms run side by side, one tab each
     with browser_session() as (driver, tasks_queue):
-        tasks_queue.add_task(CommonTasks.AUTO_CHAT, driver, platforms)
+        tasks_queue.add_task(CommonTasks.AUTO_CHAT, driver, platforms, dry_run)
 
 
-def run_own_posts(platforms) -> None:
+def run_own_posts(platforms, dry_run: bool = False) -> None:
     with browser_session() as (driver, tasks_queue):
         for platform in platforms:
-            tasks_queue.add_task(CommonTasks.AUTO_OWN_POSTS, driver, platform)
+            tasks_queue.add_task(CommonTasks.AUTO_OWN_POSTS, driver, platform, dry_run)
 
 
 # Lines typed in the terminal, read by a background thread so that waiting for
@@ -297,6 +303,12 @@ def parse_args() -> argparse.Namespace:
         command.add_argument(
             "platforms", nargs="*", metavar="platform", help=", ".join(PLATFORMS)
         )
+    for name in ("follow", "like", "chat", "own-posts"):
+        commands.choices[name].add_argument(
+            "--dry-run",
+            action="store_true",
+            help="go through the pages and find the buttons, but click, type and record nothing",
+        )
     commands.choices["login"].add_argument(
         "--by-hand",
         action="store_true",
@@ -344,7 +356,7 @@ def main(args: argparse.Namespace) -> None:
         run = run_login_by_hand if args.by_hand else run_login
         run(args.platforms or list(PLATFORMS))
     elif args.command == "like":
-        run_like(args.platforms or like_platforms())
+        run_like(args.platforms or like_platforms(), args.dry_run)
     elif args.command == "chat":
         platforms = args.platforms or chat_platforms(configured_only=True)
         if not platforms:
@@ -353,7 +365,7 @@ def main(args: argparse.Namespace) -> None:
             check_chat_settings(platforms)
         except ValueError as e:
             raise SystemExit(f"Invalid config.AUTO_CHAT: {e}")
-        run_chat(platforms)
+        run_chat(platforms, args.dry_run)
     elif args.command == "own-posts":
         platforms = args.platforms or own_posts_platforms(configured_only=True)
         if not platforms:
@@ -366,7 +378,7 @@ def main(args: argparse.Namespace) -> None:
                     )
         except ValueError as e:
             raise SystemExit(f"Invalid config: {e}")
-        run_own_posts(platforms)
+        run_own_posts(platforms, args.dry_run)
     elif args.command == "unfollow":
         try:
             confirmed = confirm_unfollow(args.platforms, args.dry_run, args.yes)
@@ -376,7 +388,7 @@ def main(args: argparse.Namespace) -> None:
             raise SystemExit("Aborted, nothing unfollowed.")
         run_unfollow(args.platforms, args.dry_run)
     else:
-        run_follow(args.platforms or enabled_platforms())
+        run_follow(args.platforms or enabled_platforms(), args.dry_run)
 
 
 if __name__ == "__main__":
@@ -391,6 +403,8 @@ if __name__ == "__main__":
     # single connection, an extra one is opened and dropped. Harmless.
     logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
 
+    # Killed (kill, systemd, timeout): stop cleanly so the browser gets closed too
+    signal.signal(signal.SIGTERM, lambda *_: request_cancel())
     try:
         main(parse_args())
     except Cancelled:

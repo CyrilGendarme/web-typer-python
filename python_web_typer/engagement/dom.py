@@ -9,14 +9,12 @@ from typing import List, Optional, Sequence, Tuple
 
 from selenium.common.exceptions import (
     StaleElementReferenceException,
-    TimeoutException,
     WebDriverException,
 )
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
-from selenium.webdriver.support.ui import WebDriverWait
 
-from ..cancellation import cancellable_sleep
+from ..cancellation import cancellable_sleep, wait_if_held
 
 __all__ = [
     "collect_profile_links",
@@ -278,14 +276,24 @@ def scroll_scope(driver: WebDriver, scope_css: Optional[str] = None) -> bool:
 
 
 def wait_for(driver: WebDriver, condition, timeout: float, poll: float = 0.5):
-    """Polls `condition(driver)` until truthy. Returns its value, or None on timeout."""
-    try:
-        return WebDriverWait(
-            driver, timeout, poll_frequency=poll, ignored_exceptions=(WebDriverException,)
-        ).until(lambda d: condition(d) or False)
-    except TimeoutException:
-        return None
-
+    """
+    Polls `condition(driver)` until truthy. Returns its value, or None on timeout.
+    Time spent held by a CAPTCHA / verification doesn't count (see cancellation).
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        deadline += wait_if_held()
+        try:
+            result = condition(driver)
+        except WebDriverException:
+            result = None
+        if result:
+            return result
+        if time.monotonic() >= deadline:
+            return None
+        started = time.monotonic()
+        cancellable_sleep(poll)
+        deadline += max(0.0, time.monotonic() - started - poll)  # held during the sleep
 
 def wait_until_label_changes(
     driver: WebDriver, element: WebElement, labels: Sequence[str], timeout: float = 5

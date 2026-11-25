@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Callable, FrozenSet, Iterator, Optional, Tuple
 from urllib.parse import quote_plus
 
+from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
 
@@ -119,6 +120,14 @@ class PlatformSpec:
         return None
 
 
+def _label(button: WebElement) -> str:
+    """Visible text or aria-label of a button, for dry-run logs."""
+    try:
+        return (button.text or button.get_attribute("aria-label") or "").strip()[:40]
+    except WebDriverException:
+        return "?"
+
+
 def browse_pause() -> None:
     cancellable_sleep(draw(AUTO_FOLLOW_BROWSE_DELAY))
 
@@ -139,6 +148,10 @@ class FollowSession(ActionSession):
         follower_count: Optional[int] = None,
     ) -> bool:
         """Clicks `button` and records the follow once the button state changed."""
+        details = f", {follower_count} followers" if follower_count is not None else ""
+        if self.dry_run:
+            self.succeeded(account_id, details + f", button {_label(button)!r}")
+            return True
         labels = self.spec.follow_labels
         if not (
             simulate_click(self.driver, button, wait_time=5)
@@ -148,10 +161,7 @@ class FollowSession(ActionSession):
             return False
 
         self.store.mark(self.spec.name, account_id, FOLLOWED, url, follower_count)
-        self.succeeded(
-            account_id,
-            f", {follower_count} followers" if follower_count is not None else "",
-        )
+        self.succeeded(account_id, details)
         return True
 
 

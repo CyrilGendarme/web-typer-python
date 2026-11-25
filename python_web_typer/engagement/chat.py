@@ -103,12 +103,15 @@ def type_and_submit(
     return wait_until_emptied(driver, field)
 
 
-def _send(driver: WebDriver, spec, message: str) -> Optional[bool]:
-    """True: sent. False: typed but not sent. None: no chat field (stream ended?)."""
+def _send(driver: WebDriver, spec, message: str, dry_run: bool = False) -> Optional[bool]:
+    """
+    True: sent. False: typed but not sent. None: no chat field (stream ended?).
+    With `dry_run`, only looks for the field: nothing is typed.
+    """
     field = wait_for(driver, lambda d: find_editable(d, spec.chat.input_css), timeout=15)
     if field is None:
         return None
-    return type_and_submit(driver, field, message)
+    return True if dry_run else type_and_submit(driver, field, message)
 
 
 def _open_chat(driver: WebDriver, spec, url: str, new_tab: bool) -> Optional[str]:
@@ -125,8 +128,13 @@ def _open_chat(driver: WebDriver, spec, url: str, new_tab: bool) -> Optional[str
     return driver.current_window_handle
 
 
-def run_chat(driver: WebDriver, specs: Iterable, settings_of: Callable[[str], dict]) -> Dict[str, int]:
-    """Sends messages until every platform reached its quota or stopped. Returns sent counts."""
+def run_chat(
+    driver: WebDriver, specs: Iterable, settings_of: Callable[[str], dict], dry_run: bool = False
+) -> Dict[str, int]:
+    """
+    Sends messages until every platform reached its quota or stopped. Returns sent
+    counts. A dry run checks each chat field once, right away, without typing.
+    """
     sessions: Dict[str, ChatSession] = {}
     windows: Dict[str, str] = {}
     next_at: Dict[str, float] = {}
@@ -142,8 +150,9 @@ def run_chat(driver: WebDriver, specs: Iterable, settings_of: Callable[[str], di
         if window is None:
             continue
         windows[spec.name] = window
-        sessions[spec.name] = ChatSession(driver, None, spec, quota=draw(settings["max_messages"]))
-        next_at[spec.name] = time.monotonic() + draw(settings["interval"])
+        quota = 1 if dry_run else draw(settings["max_messages"])
+        sessions[spec.name] = ChatSession(driver, None, spec, quota=quota, dry_run=dry_run)
+        next_at[spec.name] = time.monotonic() + (0 if dry_run else draw(settings["interval"]))
         recent[spec.name] = recent_messages(settings["messages"])
         logger.info(
             "[%s] Chat open, %d messages planned, first in %.0fs",
@@ -161,7 +170,7 @@ def run_chat(driver: WebDriver, specs: Iterable, settings_of: Callable[[str], di
         driver.switch_to.window(windows[name])
         message = pick_message(settings["messages"], recent[name])
 
-        sent = _send(driver, session.spec, message)
+        sent = _send(driver, session.spec, message, dry_run)
         if sent is None:
             logger.info("[%s] Chat field gone (stream ended?), stopping", name)
             session.aborted = True

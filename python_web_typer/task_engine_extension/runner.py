@@ -10,7 +10,7 @@ avoids both.
 import logging
 from typing import Optional
 
-from ..cancellation import Cancelled, cancellable_sleep, is_cancel_requested
+from ..cancellation import Cancelled, HoldTimeout, cancellable_sleep, is_cancel_requested
 from ..humanize import Number, draw
 from submodules.python_task_queue_scheduler.task_queue.tasks_queue import (
     TasksQueue,
@@ -34,6 +34,8 @@ def run_next_task(task_queue: TasksQueue) -> bool:
 
     try:
         func(*args)
+    except HoldTimeout as e:
+        logger.warning("Task %s abandoned: %s", getattr(func, "__name__", func), e)
     except Exception:
         # Stop requested (e.g. browser closed): the failure is a consequence, not a bug
         if is_cancel_requested():

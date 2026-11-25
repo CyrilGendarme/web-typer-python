@@ -15,11 +15,13 @@ import time
 
 __all__ = [
     "Cancelled",
+    "HoldTimeout",
     "request_cancel",
     "reset_cancel",
     "is_cancel_requested",
     "hold_actions",
     "release_actions",
+    "wait_if_held",
     "cancellable_sleep",
 ]
 
@@ -38,6 +40,14 @@ class Cancelled(BaseException):
 
     A BaseException (like KeyboardInterrupt) so the `except Exception` safety
     nets of the task runner don't swallow it and carry on with the next task.
+    """
+
+
+class HoldTimeout(Exception):
+    """
+    A CAPTCHA / verification wasn't solved within config.HUMAN_CHECK_HOLD_TIMEOUT
+    (or is an automatic check that never lets the browser through). Ends the
+    current action; the next one (other platform) runs.
     """
 
 
@@ -67,17 +77,35 @@ def release_actions() -> None:
     _released.set()
 
 
-def _wait_released() -> None:
-    reminder = time.monotonic() + _HOLD_REMINDER_EVERY
+def wait_if_held() -> float:
+    """
+    Blocks while actions are held. Returns the seconds spent held.
+
+    Raises:
+        Cancelled: stop requested meanwhile.
+        HoldTimeout: still held after config.HUMAN_CHECK_HOLD_TIMEOUT. The hold is
+            released, so the next action isn't caught by the same check.
+    """
+    if _released.is_set():
+        return 0.0
+    from .config import HUMAN_CHECK_HOLD_TIMEOUT  # config is heavier, only needed here
+
+    start = time.monotonic()
+    reminder = start + _HOLD_REMINDER_EVERY
     while not _released.wait(0.5):
         if _cancel.is_set():
             raise Cancelled()
-        if time.monotonic() >= reminder:
+        now = time.monotonic()
+        if now - start >= HUMAN_CHECK_HOLD_TIMEOUT:
+            _released.set()
+            raise HoldTimeout(f"CAPTCHA / verification not solved within {HUMAN_CHECK_HOLD_TIMEOUT}s")
+        if now >= reminder:
             logger.info("Still waiting for the CAPTCHA / verification to be solved in the browser")
-            reminder = time.monotonic() + _HOLD_REMINDER_EVERY
+            reminder = now + _HOLD_REMINDER_EVERY
+    return time.monotonic() - start
 
 
 def cancellable_sleep(seconds: float) -> None:
     if _cancel.wait(max(0.0, seconds)):
         raise Cancelled()
-    _wait_released()
+    wait_if_held()

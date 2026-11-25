@@ -47,6 +47,9 @@ _QUIET_CHROMIUM_ARGS = (
     "--disable-search-engine-choice-screen",
     "--disable-notifications",
     "--password-store=basic",  # no OS keyring unlock prompt on Linux
+    # Keep rendering when the window is behind others: some sites (YouTube) only
+    # build their content while frames are drawn
+    "--disable-renderer-backgrounding",
 )
 
 _QUIET_CHROMIUM_PREFS = {

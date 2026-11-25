@@ -41,6 +41,7 @@ from PyQt6.QtWidgets import (
 from .. import config
 from ..cancellation import (
     Cancelled,
+    HoldTimeout,
     cancellable_sleep,
     hold_actions,
     release_actions,
@@ -291,7 +292,7 @@ class ActionWorker(QThread):
                 logger.info("■ %s ended: browser window closed", self.title)
             else:
                 logger.warning("■ %s stopped", self.title)
-        except ValueError as e:  # configuration problems
+        except (ValueError, HoldTimeout) as e:  # configuration problems, unsolved check
             logger.error("■ %s: %s", self.title, e)
         except Exception as e:
             if driver is None and self._automated:  # the browser didn't start (profile already open...)
@@ -359,8 +360,14 @@ class ControlPanel(QMainWindow):
         self._stop = QPushButton("Stop")
         self._stop.setStyleSheet("font-weight: bold;")
         self._stop.clicked.connect(self._request_stop)
+        # One switch for every action: safe by default
+        self._dry_run = QCheckBox("Dry run (no clicks)")
+        self._dry_run.setChecked(True)
+        self._dry_run.setToolTip(
+            "Actions go through the pages and find the buttons, but click, type and record nothing"
+        )
         self._status = QLabel()
-        for widget in (save, stats, login_all, chat_all, self._stop):
+        for widget in (save, stats, login_all, chat_all, self._dry_run, self._stop):
             toolbar.addWidget(widget)
         toolbar.addStretch()
         toolbar.addWidget(self._status)
@@ -431,20 +438,17 @@ class ControlPanel(QMainWindow):
         layout.addWidget(self._section(
             "Follow", "AUTO_FOLLOW", name, platform_settings(name),
             [f for f in FOLLOW_FIELDS if f.applies(spec)],
-            ("Follow", lambda: self._start(f"Follow on {name}", lambda d: auto_follow(d, name))),
+            ("Follow", lambda: self._start_action(f"Follow on {name}", lambda d, dry: auto_follow(d, name, dry))),
         ))
         if spec.unfollow:
-            dry_run = QCheckBox("Dry run (only list who would be unfollowed)")
-            dry_run.setChecked(True)
             layout.addWidget(self._section(
                 "Unfollow", "AUTO_UNFOLLOW", name, unfollow_settings(name), UNFOLLOW_FIELDS,
-                ("Unfollow", lambda: self._unfollow(name, dry_run.isChecked())),
-                extra=dry_run,
+                ("Unfollow", lambda: self._unfollow(name, self._dry_run.isChecked())),
             ))
         if spec.like:
             layout.addWidget(self._section(
                 "Like posts", "AUTO_LIKE", name, like_settings(name), LIKE_FIELDS,
-                ("Like", lambda: self._start(f"Like on {name}", lambda d: auto_like(d, name))),
+                ("Like", lambda: self._start_action(f"Like on {name}", lambda d, dry: auto_like(d, name, dry))),
             ))
         if spec.chat:
             layout.addWidget(self._section(
@@ -454,8 +458,8 @@ class ControlPanel(QMainWindow):
         if spec.own_posts:
             layout.addWidget(self._section(
                 "My posts", "AUTO_OWN_POSTS", name, own_posts_settings(name), OWN_POSTS_FIELDS,
-                ("Like / comment my posts", lambda: self._start(
-                    f"My posts on {name}", lambda d: auto_own_posts(d, name))),
+                ("Like / comment my posts", lambda: self._start_action(
+                    f"My posts on {name}", lambda d, dry: auto_own_posts(d, name, dry))),
             ))
         layout.addStretch()
 
@@ -550,6 +554,11 @@ class ControlPanel(QMainWindow):
         self._set_running(True, title)
         self._worker.start()
 
+    def _start_action(self, title: str, action: Callable) -> None:
+        """`action(driver, dry_run)`, with the toolbar's "Dry run" switch read now."""
+        dry_run = self._dry_run.isChecked()
+        self._start(title + (" (dry run)" if dry_run else ""), lambda driver: action(driver, dry_run))
+
     def _login(self, spec) -> None:
         """Automatic login when credentials are set; otherwise, or if blocked, by hand."""
 
@@ -611,6 +620,9 @@ class ControlPanel(QMainWindow):
                 except BotBlocked as e:
                     logger.error("%s", e)
                     bot_blocked.append((e.platform, e.message))
+                except HoldTimeout as e:
+                    logger.error("[%s] %s", platform, e)
+                    failed.append(platform)
             if refused:
                 self.credentials_refused.emit(refused)
             if bot_blocked:
@@ -650,7 +662,7 @@ class ControlPanel(QMainWindow):
         except ValueError as e:
             QMessageBox.critical(self, "Chat not configured", str(e))
             return
-        self._start(f"Chat on {', '.join(platforms)}", lambda d: auto_chat(d, platforms))
+        self._start_action(f"Chat on {', '.join(platforms)}", lambda d, dry: auto_chat(d, platforms, dry))
 
     def _chat_all(self) -> None:
         platforms = chat_platforms(configured_only=True)

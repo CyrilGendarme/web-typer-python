@@ -36,7 +36,7 @@ from .login import BadCredentials, BotBlocked, auto_login, check_session, creden
 from .like import LIKED, LikeSession, likes_store_key, run_like
 from .own_posts import OwnPostsSession, run_own_posts
 from .platforms import PLATFORMS
-from .store import FOLLOWED, UNFOLLOWED, FollowedStore
+from .store import FOLLOWED, UNFOLLOWED, FollowedStore, ReadOnlyStore
 from .unfollow import UnfollowSession, normalize_keep_list, run_unfollow
 
 __all__ = [
@@ -70,6 +70,15 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 
+def _dry(dry_run: bool) -> str:
+    return "[dry-run] " if dry_run else ""
+
+
+def _for_run(store: FollowedStore, dry_run: bool):
+    """The store the session writes to: none in a dry run (reads still go through)."""
+    return ReadOnlyStore(store) if dry_run else store
+
+
 def platform_settings(platform: str) -> Dict:
     return {**AUTO_FOLLOW_DEFAULTS, **AUTO_FOLLOW.get(platform, {})}
 
@@ -85,12 +94,13 @@ def _quota(store: FollowedStore, platform: str, status: str, per_run, per_24h) -
 
 
 def auto_follow(
-    driver: WebDriver, platform: str, store: Optional[FollowedStore] = None
+    driver: WebDriver, platform: str, dry_run: bool = False, store: Optional[FollowedStore] = None
 ) -> int:
     """
     Follows up to `max_follows` new accounts on `platform` (config.AUTO_FOLLOW),
     within `max_follows_per_24h`, both drawn at random for this run.
-    Returns the number of accounts followed.
+    With `dry_run`, goes through the pages and finds the buttons, but clicks and
+    records nothing. Returns the number of accounts followed (or that would be).
     """
     spec = PLATFORMS[platform]
     settings = platform_settings(platform)
@@ -105,8 +115,8 @@ def auto_follow(
             logger.info("[%s] 24h follow cap reached, skipping", platform)
             return 0
 
-        logger.info("[%s] Following up to %d accounts", platform, quota)
-        session = FollowSession(driver, store, spec, quota)
+        logger.info("[%s] %sFollowing up to %d accounts", platform, _dry(dry_run), quota)
+        session = FollowSession(driver, _for_run(store, dry_run), spec, quota, dry_run=dry_run)
         (run_listing if spec.listing_pages else run_search)(session, settings)
         logger.info("[%s] Done: %d followed", platform, session.count)
         return session.count
@@ -180,11 +190,11 @@ def auto_unfollow(
         logger.info(
             "[%s] %sUnfollowing up to %d accounts, keeping %d",
             platform,
-            "[dry-run] " if dry_run else "",
+            _dry(dry_run),
             quota,
             len(keep),
         )
-        session = UnfollowSession(driver, store, spec, quota, dry_run=dry_run)
+        session = UnfollowSession(driver, _for_run(store, dry_run), spec, quota, dry_run=dry_run)
         run_unfollow(session, settings, keep)
         logger.info("[%s] Done: %d unfollowed", platform, session.count)
         return session.count
@@ -202,11 +212,12 @@ def like_platforms() -> List[str]:
 
 
 def auto_like(
-    driver: WebDriver, platform: str, store: Optional[FollowedStore] = None
+    driver: WebDriver, platform: str, dry_run: bool = False, store: Optional[FollowedStore] = None
 ) -> int:
     """
     Likes up to `max_likes` posts found with the search terms of
-    config.AUTO_LIKE, within `max_likes_per_24h`. Returns the number of likes.
+    config.AUTO_LIKE, within `max_likes_per_24h`. With `dry_run`, finds the like
+    buttons but clicks and records nothing. Returns the number of likes.
     """
     spec = PLATFORMS[platform]
     if spec.like is None:
@@ -227,8 +238,8 @@ def auto_like(
             logger.info("[%s] 24h like cap reached, skipping", platform)
             return 0
 
-        logger.info("[%s] Liking up to %d posts", platform, quota)
-        session = LikeSession(driver, store, spec, quota)
+        logger.info("[%s] %sLiking up to %d posts", platform, _dry(dry_run), quota)
+        session = LikeSession(driver, _for_run(store, dry_run), spec, quota, dry_run=dry_run)
         run_like(session, settings)
         logger.info("[%s] Done: %d liked", platform, session.count)
         return session.count
@@ -264,13 +275,14 @@ def check_chat_settings(platforms: List[str]) -> None:
             raise ValueError(f"[{platform}] set channel (or chat_url) in config.AUTO_CHAT")
 
 
-def auto_chat(driver: WebDriver, platforms: List[str]) -> Dict[str, int]:
+def auto_chat(driver: WebDriver, platforms: List[str], dry_run: bool = False) -> Dict[str, int]:
     """
     Posts messages from config.AUTO_CHAT in your own live chat on each platform
-    (one tab each), every `interval`, up to `max_messages`. Returns sent counts.
+    (one tab each), every `interval`, up to `max_messages`. With `dry_run`, only
+    checks each chat field once, without typing. Returns sent counts.
     """
     check_chat_settings(platforms)
-    counts = run_chat(driver, [PLATFORMS[p] for p in platforms], chat_settings)
+    counts = run_chat(driver, [PLATFORMS[p] for p in platforms], chat_settings, dry_run)
     logger.info("Chat done: %s", counts)
     return counts
 
@@ -288,11 +300,13 @@ def own_posts_platforms(configured_only: bool = False) -> List[str]:
 
 
 def auto_own_posts(
-    driver: WebDriver, platform: str, store: Optional[FollowedStore] = None
+    driver: WebDriver, platform: str, dry_run: bool = False, store: Optional[FollowedStore] = None
 ) -> int:
     """
     Likes and/or comments (config.AUTO_OWN_POSTS) up to `max_posts` of your own
-    latest posts not handled yet. Returns the number of posts updated.
+    latest posts not handled yet. With `dry_run`, finds the like button and the
+    comment box but clicks, types and records nothing. Returns the number of
+    posts updated.
 
     Raises:
         ValueError: if your account isn't set or valid in config.OWN_ACCOUNTS.
@@ -309,8 +323,8 @@ def auto_own_posts(
 
     try:
         quota = draw(settings["max_posts"])
-        logger.info("[%s] Updating up to %d of your posts (%s)", platform, quota, me)
-        session = OwnPostsSession(driver, store, spec, quota)
+        logger.info("[%s] %sUpdating up to %d of your posts (%s)", platform, _dry(dry_run), quota, me)
+        session = OwnPostsSession(driver, _for_run(store, dry_run), spec, quota, dry_run=dry_run)
         run_own_posts(session, settings, me)
         logger.info("[%s] Done: %d posts updated", platform, session.count)
         return session.count

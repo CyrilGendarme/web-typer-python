@@ -63,6 +63,9 @@ class LikeSession(ActionSession):
 
     def like(self, button: WebElement, post_id: str, url: str) -> bool:
         like = self.spec.like
+        if self.dry_run:
+            self.succeeded(post_id, " (like button found)")
+            return True
         if not (
             simulate_click(self.driver, button, wait_time=5)
             and wait_until_liked(self.driver, button, like.labels)
